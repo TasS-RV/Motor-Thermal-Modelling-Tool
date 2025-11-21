@@ -216,11 +216,13 @@ def align_and_merge_data(df_export, df_daq, throttle_start_idx, temp_start_idx,
             smooth = col_spec.get('smooth', False)
             method = col_spec.get('method', 'stratified')  # 'stratified' or 'rolling'
             window_size = col_spec.get('window_size', 5.0)  # seconds
+            range_indices = col_spec.get('range', None)  # [start_idx, end_idx] or None
         else:
             col_name = col_spec
             smooth = False
             method = 'stratified'
             window_size = 5.0
+            range_indices = None
         
         if col_name in df_export_overlap.columns:
             values = df_export_overlap[col_name].values
@@ -228,11 +230,13 @@ def align_and_merge_data(df_export, df_daq, throttle_start_idx, temp_start_idx,
             # Apply smoothing if requested
             if smooth:
                 if method == 'stratified':
-                    values = smooth_stratified_average(time_values, values, window_size)
-                    print(f"  Applied stratified averaging to '{col_name}' (window: {window_size}s)")
+                    values = smooth_stratified_average(time_values, values, window_size, range_indices)
+                    range_str = f" (range: {range_indices})" if range_indices else ""
+                    print(f"  Applied stratified averaging to '{col_name}' (window: {window_size}s{range_str})")
                 elif method == 'rolling':
-                    values = smooth_rolling_average(time_values, values, window_size)
-                    print(f"  Applied rolling average to '{col_name}' (window: {window_size}s)")
+                    values = smooth_rolling_average(time_values, values, window_size, range_indices)
+                    range_str = f" (range: {range_indices})" if range_indices else ""
+                    print(f"  Applied rolling average to '{col_name}' (window: {window_size}s{range_str})")
                 else:
                     print(f"  Warning: Unknown smoothing method '{method}', using raw data")
             
@@ -293,9 +297,14 @@ def smooth_stratified_average(time, values, window_size=5.0, range_indices=None)
     
     # Determine the range to smooth
     if range_indices is not None:
-        start_idx, end_idx = range_indices
-        start_idx = max(0, int(start_idx))
-        end_idx = min(len(time), int(end_idx))
+        # Handle single-element range (start only) - means "from start to end"
+        if len(range_indices) == 1:
+            start_idx = max(0, int(range_indices[0]))
+            end_idx = len(time)
+        else:
+            start_idx, end_idx = range_indices[0], range_indices[1]
+            start_idx = max(0, int(start_idx))
+            end_idx = min(len(time), int(end_idx))
         if start_idx >= end_idx:
             return values
         range_mask = np.zeros(len(time), dtype=bool)
@@ -347,9 +356,13 @@ def smooth_stratified_average(time, values, window_size=5.0, range_indices=None)
                               left=bin_averages[0], right=bin_averages[-1])
     
     # Map back to original indices
-    range_indices_array = np.where(range_mask)[0]
-    for i, idx in enumerate(range_indices_array[valid_mask]):
-        smoothed[idx] = smoothed_range[i]
+    # Get the indices in the original array that correspond to the range
+    range_indices_array = np.where(range_mask)[0]  # All indices in range
+    valid_range_indices = range_indices_array[valid_mask]  # Only valid indices in range
+    
+    # Map smoothed values back to original array positions
+    for i, orig_idx in enumerate(valid_range_indices):
+        smoothed[orig_idx] = smoothed_range[i]
     
     return smoothed
 
@@ -381,9 +394,14 @@ def smooth_rolling_average(time, values, window_size=5.0, range_indices=None):
     
     # Determine the range to smooth
     if range_indices is not None:
-        start_idx, end_idx = range_indices
-        start_idx = max(0, int(start_idx))
-        end_idx = min(len(time), int(end_idx))
+        # Handle single-element range (start only) - means "from start to end"
+        if len(range_indices) == 1:
+            start_idx = max(0, int(range_indices[0]))
+            end_idx = len(time)
+        else:
+            start_idx, end_idx = range_indices[0], range_indices[1]
+            start_idx = max(0, int(start_idx))
+            end_idx = min(len(time), int(end_idx))
         if start_idx >= end_idx:
             return values
         range_mask = np.zeros(len(time), dtype=bool)
@@ -443,29 +461,34 @@ if __name__ == "__main__":
     #   - "smooth": True/False - enable/disable smoothing
     #   - "method": "stratified" (binned averaging) or "rolling" (rolling average)
     #   - "window_size": time window in seconds (default: 5.0)
+    #   - "range": [start_idx, end_idx] or [start_idx] - optional, data point indices to smooth and plot
+    #     Examples: [20, 1020] means points 20 to 1020, [20] means from point 20 to the end
+    #     If specified, only this range will be plotted for this column and time axis will be adjusted to start from 0
+    #     Each column can have its own range, allowing different ranges for different columns
     #
-    # Example with smoothing and range:
+    # Example with smoothing and range (per-column):
     # COLUMNS_TO_PLOT = {
     #     "Run2-Throttle100": [
-    #         {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 5.0, "range": [20, 1020]}
+    #         {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 5.0, "range": [20, 1020]},
+    #         {"column": "Current (A)", "smooth": True, "method": "stratified", "window_size": 5.0, "range": [50, 1050]}  # Different range!
     #     ],
     # }
     #
     # Example with smoothing (full dataset):
     COLUMNS_TO_PLOT = {
         "Run2-Throttle100": [
-            {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 5}
+            {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 1, "range": [20]}
         ],
         "Run13-Throttle8": [
-            {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 5}
+            {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 1, "range": [200]}
         ],
     }
     
-    # Example without smoothing (commented out):
-    # COLUMNS_TO_PLOT = {
-    #     "Run2-Throttle100": ["Power (W)"],
-    #     "Run13-Throttle8": ["Power (W)"],
-    # }
+    #Example without smoothing (commented out):
+    COLUMNS_TO_PLOT = {
+        "Run2-Throttle100": ["Power (W)"],
+        "Run13-Throttle8": ["Power (W)"],
+    }
     
     # 3. Temperature parameter from DAQ files
     temperature_param = "Winding Temp (°C)" 
@@ -596,13 +619,41 @@ if __name__ == "__main__":
                 if isinstance(col_spec, dict):
                     col_name = col_spec.get('column', '')
                     smooth = col_spec.get('smooth', False)
+                    range_indices = col_spec.get('range', None)  # [start_idx, end_idx] or None
                     label_suffix = " (smoothed)" if smooth else ""
                 else:
                     col_name = col_spec
+                    range_indices = None
                     label_suffix = ""
                 
                 if col_name in df_merged.columns:
-                    ax2.plot(df_merged['Time (s)'], df_merged[col_name],
+                    # Extract data for this column
+                    time_data = df_merged['Time (s)'].values
+                    col_data = df_merged[col_name].values
+                    
+                    # Filter to specified range if provided
+                    if range_indices is not None:
+                        # Handle single-element range (start only) - means "from start to end"
+                        if len(range_indices) == 1:
+                            start_idx = max(0, int(range_indices[0]))
+                            end_idx = len(df_merged)
+                        else:
+                            start_idx, end_idx = range_indices[0], range_indices[1]
+                            start_idx = max(0, int(start_idx))
+                            end_idx = min(len(df_merged), int(end_idx))
+                        
+                        if start_idx < end_idx:
+                            time_data = time_data[start_idx:end_idx]
+                            col_data = col_data[start_idx:end_idx]
+                            # Adjust time axis to start from 0
+                            time_offset = time_data[0]
+                            time_data = time_data - time_offset
+                            if len(range_indices) == 1:
+                                label_suffix += f" [range: {start_idx}-end]"
+                            else:
+                                label_suffix += f" [range: {start_idx}-{end_idx}]"
+                    
+                    ax2.plot(time_data, col_data,
                            label=f"{folder_name} - {col_name}{label_suffix}", 
                            linewidth=1.5, linestyle='--', alpha=0.7)
             
