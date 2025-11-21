@@ -162,6 +162,11 @@ def align_and_merge_data(df_export, df_daq, throttle_start_idx, temp_start_idx,
     Align Export and DAQ data based on detected start points and create unified CSV.
     Only uses the overlapping time window between the two datasets.
     
+    columns_to_plot can be:
+    - List of strings: ["Power (W)", "Current (A)"]
+    - List of dicts: [{"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 5.0}]
+    - Mixed: ["Power (W)", {"column": "Current (A)", "smooth": True}]
+    
     Returns: merged DataFrame with aligned times
     """
     # Extract data starting from detected points
@@ -201,11 +206,37 @@ def align_and_merge_data(df_export, df_daq, throttle_start_idx, temp_start_idx,
     
     # Use Export time grid (finer sampling) for merged data
     merged_data = {'Time (s)': df_export_overlap['Time_aligned'].values}
+    time_values = df_export_overlap['Time_aligned'].values
     
-    # Add Export columns
-    for col in columns_to_plot:
-        if col in df_export_overlap.columns:
-            merged_data[col] = df_export_overlap[col].values
+    # Add Export columns (with optional smoothing)
+    for col_spec in columns_to_plot:
+        # Parse column specification
+        if isinstance(col_spec, dict):
+            col_name = col_spec.get('column', '')
+            smooth = col_spec.get('smooth', False)
+            method = col_spec.get('method', 'stratified')  # 'stratified' or 'rolling'
+            window_size = col_spec.get('window_size', 5.0)  # seconds
+        else:
+            col_name = col_spec
+            smooth = False
+            method = 'stratified'
+            window_size = 5.0
+        
+        if col_name in df_export_overlap.columns:
+            values = df_export_overlap[col_name].values
+            
+            # Apply smoothing if requested
+            if smooth:
+                if method == 'stratified':
+                    values = smooth_stratified_average(time_values, values, window_size)
+                    print(f"  Applied stratified averaging to '{col_name}' (window: {window_size}s)")
+                elif method == 'rolling':
+                    values = smooth_rolling_average(time_values, values, window_size)
+                    print(f"  Applied rolling average to '{col_name}' (window: {window_size}s)")
+                else:
+                    print(f"  Warning: Unknown smoothing method '{method}', using raw data")
+            
+            merged_data[col_name] = values
     
     # Add temperature from DAQ (interpolated onto Export time grid)
     if temp_col in df_daq_overlap.columns:
@@ -232,6 +263,165 @@ def rc_thermal_model(t, T_inf, T_0, tau):
     return T_inf - (T_inf - T_0) * np.exp(-t / tau)
 
 
+def smooth_stratified_average(time, values, window_size=5.0, range_indices=None):
+    """
+    Smooth data using stratified averaging (binned averaging).
+    
+    Divides the time axis into bins of size window_size and averages values within each bin.
+    Returns smoothed values at the original time points (using interpolation).
+    
+    Parameters:
+    -----------
+    time : array-like
+        Time values
+    values : array-like
+        Data values to smooth
+    window_size : float
+        Time window size in seconds for each bin
+    range_indices : tuple or list, optional
+        (start_idx, end_idx) to limit smoothing to a specific range of data points.
+        If None, smooths the entire dataset.
+        
+    Returns:
+    --------
+    smoothed_values : numpy array
+        Smoothed values at original time points (only smoothed within range if specified)
+    """
+    time = np.array(time)
+    values = np.array(values)
+    smoothed = values.copy()
+    
+    # Determine the range to smooth
+    if range_indices is not None:
+        start_idx, end_idx = range_indices
+        start_idx = max(0, int(start_idx))
+        end_idx = min(len(time), int(end_idx))
+        if start_idx >= end_idx:
+            return values
+        range_mask = np.zeros(len(time), dtype=bool)
+        range_mask[start_idx:end_idx] = True
+    else:
+        range_mask = np.ones(len(time), dtype=bool)
+        start_idx = 0
+        end_idx = len(time)
+    
+    # Extract data within the range
+    time_range = time[range_mask]
+    values_range = values[range_mask]
+    
+    # Remove NaN values
+    valid_mask = ~(np.isnan(time_range) | np.isnan(values_range))
+    if not valid_mask.any():
+        return values
+    
+    time_valid = time_range[valid_mask]
+    values_valid = values_range[valid_mask]
+    
+    # Create bins
+    time_min = time_valid.min()
+    time_max = time_valid.max()
+    bins = np.arange(time_min, time_max + window_size, window_size)
+    
+    # Bin the data and compute averages
+    bin_indices = np.digitize(time_valid, bins) - 1
+    bin_indices = np.clip(bin_indices, 0, len(bins) - 2)  # Ensure valid indices
+    
+    bin_centers = []
+    bin_averages = []
+    
+    for i in range(len(bins) - 1):
+        mask = bin_indices == i
+        if mask.sum() > 0:
+            bin_centers.append((bins[i] + bins[i+1]) / 2)
+            bin_averages.append(np.mean(values_valid[mask]))
+    
+    if len(bin_centers) == 0:
+        return values
+    
+    bin_centers = np.array(bin_centers)
+    bin_averages = np.array(bin_averages)
+    
+    # Interpolate back to original time points within the range
+    time_range_valid = time_range[valid_mask]
+    smoothed_range = np.interp(time_range_valid, bin_centers, bin_averages, 
+                              left=bin_averages[0], right=bin_averages[-1])
+    
+    # Map back to original indices
+    range_indices_array = np.where(range_mask)[0]
+    for i, idx in enumerate(range_indices_array[valid_mask]):
+        smoothed[idx] = smoothed_range[i]
+    
+    return smoothed
+
+
+def smooth_rolling_average(time, values, window_size=5.0, range_indices=None):
+    """
+    Smooth data using rolling average based on time window.
+    
+    Parameters:
+    -----------
+    time : array-like
+        Time values
+    values : array-like
+        Data values to smooth
+    window_size : float
+        Time window size in seconds for rolling average
+    range_indices : tuple or list, optional
+        (start_idx, end_idx) to limit smoothing to a specific range of data points.
+        If None, smooths the entire dataset.
+        
+    Returns:
+    --------
+    smoothed_values : numpy array
+        Smoothed values at original time points (only smoothed within range if specified)
+    """
+    time = np.array(time)
+    values = np.array(values)
+    smoothed = values.copy()
+    
+    # Determine the range to smooth
+    if range_indices is not None:
+        start_idx, end_idx = range_indices
+        start_idx = max(0, int(start_idx))
+        end_idx = min(len(time), int(end_idx))
+        if start_idx >= end_idx:
+            return values
+        range_mask = np.zeros(len(time), dtype=bool)
+        range_mask[start_idx:end_idx] = True
+    else:
+        range_mask = np.ones(len(time), dtype=bool)
+        start_idx = 0
+        end_idx = len(time)
+    
+    # Extract data within the range
+    time_range = time[range_mask]
+    values_range = values[range_mask]
+    
+    # Remove NaN values
+    valid_mask = ~(np.isnan(time_range) | np.isnan(values_range))
+    if not valid_mask.any():
+        return values
+    
+    time_valid = time_range[valid_mask]
+    values_valid = values_range[valid_mask]
+    
+    # For time-based rolling, compute manually within the range
+    range_indices_array = np.where(range_mask)[0]
+    for i, idx in enumerate(range_indices_array):
+        if valid_mask[i]:
+            # Find all points within window_size/2 of current time
+            time_center = time_range[i]
+            mask = (time_valid >= time_center - window_size/2) & (time_valid <= time_center + window_size/2)
+            if mask.sum() > 0:
+                smoothed[idx] = np.mean(values_valid[mask])
+            else:
+                smoothed[idx] = values_range[i]
+        else:
+            smoothed[idx] = values_range[i]
+    
+    return smoothed
+
+
 # ---------------------------
 # Main Processing
 # ---------------------------
@@ -246,13 +436,36 @@ if __name__ == "__main__":
     
 
     # 2. Columns from Export_DataAPD files to plot (dictionary: folder_name -> list of columns)
+    # 
+    # You can specify columns in three ways:
+    # - Simple string: "Power (W)" - plots raw data
+    # - Dictionary with smoothing: {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 5.0}
+    #   - "smooth": True/False - enable/disable smoothing
+    #   - "method": "stratified" (binned averaging) or "rolling" (rolling average)
+    #   - "window_size": time window in seconds (default: 5.0)
+    #
+    # Example with smoothing and range:
+    # COLUMNS_TO_PLOT = {
+    #     "Run2-Throttle100": [
+    #         {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 5.0, "range": [20, 1020]}
+    #     ],
+    # }
+    #
+    # Example with smoothing (full dataset):
     COLUMNS_TO_PLOT = {
-        "Run2-Throttle100": ["Power (W)"],
- #       "Run8-Throttle100": ["Power (W)"],
-        "Run13-Throttle8": ["Power (W)"],
-  #      "Run14-Throttle9": ["Power (W)"],
-        #"Run3-Throttle100": ["Power (W)"],
+        "Run2-Throttle100": [
+            {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 5}
+        ],
+        "Run13-Throttle8": [
+            {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 5}
+        ],
     }
+    
+    # Example without smoothing (commented out):
+    # COLUMNS_TO_PLOT = {
+    #     "Run2-Throttle100": ["Power (W)"],
+    #     "Run13-Throttle8": ["Power (W)"],
+    # }
     
     # 3. Temperature parameter from DAQ files
     temperature_param = "Winding Temp (°C)" 
@@ -378,10 +591,19 @@ if __name__ == "__main__":
             
             # Plot Export columns on right y-axis
             columns_for_folder = COLUMNS_TO_PLOT.get(folder_name, COLUMNS_TO_PLOT.get(list(COLUMNS_TO_PLOT.keys())[0], []))
-            for col in columns_for_folder:
-                if col in df_merged.columns:
-                    ax2.plot(df_merged['Time (s)'], df_merged[col],
-                           label=f"{folder_name} - {col}", 
+            for col_spec in columns_for_folder:
+                # Parse column specification
+                if isinstance(col_spec, dict):
+                    col_name = col_spec.get('column', '')
+                    smooth = col_spec.get('smooth', False)
+                    label_suffix = " (smoothed)" if smooth else ""
+                else:
+                    col_name = col_spec
+                    label_suffix = ""
+                
+                if col_name in df_merged.columns:
+                    ax2.plot(df_merged['Time (s)'], df_merged[col_name],
+                           label=f"{folder_name} - {col_name}{label_suffix}", 
                            linewidth=1.5, linestyle='--', alpha=0.7)
             
             # RC Thermal Model Fitting
