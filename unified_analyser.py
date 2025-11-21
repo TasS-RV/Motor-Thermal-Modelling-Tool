@@ -326,6 +326,19 @@ def smooth_stratified_average(time, values, window_size=5.0, range_indices=None)
     time_valid = time_range[valid_mask]
     values_valid = values_range[valid_mask]
     
+    # If window_size is <= 1.0, return original data (no smoothing)
+    # This ensures that window_size=1 preserves the original data exactly
+    if window_size <= 1.0:
+        return values
+    
+    # Additional check: if window_size is very small relative to data spacing, return original data
+    if len(time_valid) > 1:
+        time_sorted = np.sort(time_valid)
+        typical_spacing = np.median(np.diff(time_sorted))
+        # If window_size is less than 5x the typical spacing, return original data
+        if window_size < 5 * typical_spacing:
+            return values
+    
     # Create bins
     time_min = time_valid.min()
     time_max = time_valid.max()
@@ -350,10 +363,16 @@ def smooth_stratified_average(time, values, window_size=5.0, range_indices=None)
     bin_centers = np.array(bin_centers)
     bin_averages = np.array(bin_averages)
     
-    # Interpolate back to original time points within the range
+    # For each original time point, find which bin it belongs to and use that bin's average
+    # This preserves the data better than interpolation
     time_range_valid = time_range[valid_mask]
-    smoothed_range = np.interp(time_range_valid, bin_centers, bin_averages, 
-                              left=bin_averages[0], right=bin_averages[-1])
+    smoothed_range = np.zeros_like(time_range_valid)
+    
+    for i, t in enumerate(time_range_valid):
+        # Find which bin this time point belongs to
+        bin_idx = np.digitize([t], bins)[0] - 1
+        bin_idx = np.clip(bin_idx, 0, len(bin_averages) - 1)
+        smoothed_range[i] = bin_averages[bin_idx]
     
     # Map back to original indices
     # Get the indices in the original array that correspond to the range
@@ -423,6 +442,11 @@ def smooth_rolling_average(time, values, window_size=5.0, range_indices=None):
     time_valid = time_range[valid_mask]
     values_valid = values_range[valid_mask]
     
+    # If window_size is <= 1.0, return original data (no smoothing)
+    # This ensures that window_size=1 preserves the original data exactly
+    if window_size <= 1.0:
+        return values
+    
     # For time-based rolling, compute manually within the range
     range_indices_array = np.where(range_mask)[0]
     for i, idx in enumerate(range_indices_array):
@@ -477,18 +501,18 @@ if __name__ == "__main__":
     # Example with smoothing (full dataset):
     COLUMNS_TO_PLOT = {
         "Run2-Throttle100": [
-            {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 1, "range": [20]}
+            {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 1, "range": [20, 2000]}
         ],
         "Run13-Throttle8": [
-            {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 1, "range": [200]}
+            {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 1, "range": [200, 2000]}
         ],
     }
     
-    #Example without smoothing (commented out):
-    COLUMNS_TO_PLOT = {
-        "Run2-Throttle100": ["Power (W)"],
-        "Run13-Throttle8": ["Power (W)"],
-    }
+ #   Example without smoothing (commented out):
+    # COLUMNS_TO_PLOT = {
+    #     "Run2-Throttle100": ["Power (W)"],
+    #     "Run13-Throttle8": ["Power (W)"],
+    # }
     
     # 3. Temperature parameter from DAQ files
     temperature_param = "Winding Temp (°C)" 
