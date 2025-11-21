@@ -228,15 +228,14 @@ def align_and_merge_data(df_export, df_daq, throttle_start_idx, temp_start_idx,
             values = df_export_overlap[col_name].values
             
             # Apply smoothing if requested
+            # Note: Smooth the entire dataset, not just the range. Range is only used for filtering in plotting.
             if smooth:
                 if method == 'stratified':
-                    values = smooth_stratified_average(time_values, values, window_size, range_indices)
-                    range_str = f" (range: {range_indices})" if range_indices else ""
-                    print(f"  Applied stratified averaging to '{col_name}' (window: {window_size}s{range_str})")
+                    values = smooth_stratified_average(time_values, values, window_size, None)
+                    print(f"  Applied stratified averaging to '{col_name}' (window: {window_size}s)")
                 elif method == 'rolling':
-                    values = smooth_rolling_average(time_values, values, window_size, range_indices)
-                    range_str = f" (range: {range_indices})" if range_indices else ""
-                    print(f"  Applied rolling average to '{col_name}' (window: {window_size}s{range_str})")
+                    values = smooth_rolling_average(time_values, values, window_size, None)
+                    print(f"  Applied rolling average to '{col_name}' (window: {window_size}s)")
                 else:
                     print(f"  Warning: Unknown smoothing method '{method}', using raw data")
             
@@ -363,16 +362,14 @@ def smooth_stratified_average(time, values, window_size=5.0, range_indices=None)
     bin_centers = np.array(bin_centers)
     bin_averages = np.array(bin_averages)
     
-    # For each original time point, find which bin it belongs to and use that bin's average
-    # This preserves the data better than interpolation
+    # Interpolate between bin centers to create smooth transitions
+    # This prevents step functions and creates smooth curves
     time_range_valid = time_range[valid_mask]
-    smoothed_range = np.zeros_like(time_range_valid)
     
-    for i, t in enumerate(time_range_valid):
-        # Find which bin this time point belongs to
-        bin_idx = np.digitize([t], bins)[0] - 1
-        bin_idx = np.clip(bin_idx, 0, len(bin_averages) - 1)
-        smoothed_range[i] = bin_averages[bin_idx]
+    # Use interpolation to smoothly connect bin centers
+    # Extrapolate using the first and last bin averages for points outside the bin range
+    smoothed_range = np.interp(time_range_valid, bin_centers, bin_averages,
+                               left=bin_averages[0], right=bin_averages[-1])
     
     # Map back to original indices
     # Get the indices in the original array that correspond to the range
@@ -501,10 +498,10 @@ if __name__ == "__main__":
     # Example with smoothing (full dataset):
     COLUMNS_TO_PLOT = {
         "Run2-Throttle100": [
-            {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 1, "range": [20, 2000]}
+            {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 5, "range": [80, 1200]}
         ],
         "Run13-Throttle8": [
-            {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 1, "range": [150, 500]}
+            {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 5, "range": [100, 1120]}
         ],
     }
     
