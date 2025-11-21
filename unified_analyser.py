@@ -504,11 +504,11 @@ if __name__ == "__main__":
     # Example with smoothing (full dataset):
     COLUMNS_TO_PLOT = {
         "Run2-Throttle100": [
-            {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 3, 
+            {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 1, 
             "range": [80, 1200], "label": "iNetic Stator"}
         ],
         "Run13-Throttle8": [
-            {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 3, 
+            {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 1, 
             "range": [100, 1120], "label": "ARES Stator"}
         ],
     }
@@ -560,8 +560,8 @@ if __name__ == "__main__":
     # 7. Curve fitting time range (in seconds, relative to aligned time)
     # Dictionary with keys: "fit_start_1", "fit_start_2", etc. for each folder (by index)
     fit_start_seconds = {
-        "fit_start_1": 10,  # For first folder in folder_names list
-        "fit_start_2": 20,  # For second folder in folder_names list
+        "fit_start_1": 5,  # For first folder in folder_names list
+        "fit_start_2": 12,  # For second folder in folder_names list
        # "fit_start_3": 10,  # For third folder in folder_names list
     #    "fit_start_4": 15,  # For third folder in folder_names list
         # Add more as needed: "fit_start_4", etc.
@@ -569,8 +569,8 @@ if __name__ == "__main__":
     
     # Dictionary with keys: "fit_end_1", "fit_end_2", etc. for each folder (by index)
     fit_end_seconds = {
-        "fit_end_1": 300,  # For first folder in folder_names list
-        "fit_end_2": 150,     # For second folder in folder_names list
+        "fit_end_1": 100,  # For first folder in folder_names list
+        "fit_end_2": 180,     # For second folder in folder_names list
     #    "fit_end_3": 190,  # For third folder in folder_names list
         # Add more as needed: "fit_end_4", etc.
     }
@@ -578,8 +578,8 @@ if __name__ == "__main__":
     # 8. Prediction time limits (in seconds) - how far to extend the fitted curve
     # Dictionary with keys: "prediction_limit_1", "prediction_limit_2", etc. for each folder (by index)
     prediction_time_limit_seconds = {
-        "prediction_limit_1": 300,  # For first folder in folder_names list
-        "prediction_limit_2": 300,   # For second folder in folder_names list
+        "prediction_limit_1": 200,  # For first folder in folder_names list
+        "prediction_limit_2": 200,   # For second folder in folder_names list
         # Add more as needed: "prediction_limit_4", etc.
         # Or set to None for a folder to use default (1.5x max time)
     }
