@@ -487,7 +487,7 @@ if __name__ == "__main__":
     #   - "window_size": time window in seconds (default: 5.0)
     #   - "range": [start_idx, end_idx] or [start_idx] - optional, data point indices to smooth and plot
     #     Examples: [20, 1020] means points 20 to 1020, [20] means from point 20 to the end
-    #     If specified, only this range will be plotted for this column and time axis will be adjusted to start from 0
+    #     If specified, only this range will be plotted for this column (data keeps original time positions)
     #     Each column can have its own range, allowing different ranges for different columns
     #
     # Example with smoothing and range (per-column):
@@ -504,7 +504,7 @@ if __name__ == "__main__":
             {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 1, "range": [20, 2000]}
         ],
         "Run13-Throttle8": [
-            {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 1, "range": [200, 2000]}
+            {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 1, "range": [150, 500]}
         ],
     }
     
@@ -667,11 +667,13 @@ if __name__ == "__main__":
                             end_idx = min(len(df_merged), int(end_idx))
                         
                         if start_idx < end_idx:
-                            time_data = time_data[start_idx:end_idx]
-                            col_data = col_data[start_idx:end_idx]
-                            # Adjust time axis to start from 0
-                            time_offset = time_data[0]
-                            time_data = time_data - time_offset
+                            # Python slicing is exclusive of end, so use end_idx+1 to include the end index
+                            # But cap it at the array length to avoid index errors
+                            end_slice = min(end_idx + 1, len(time_data))
+                            time_data = time_data[start_idx:end_slice]
+                            col_data = col_data[start_idx:end_slice]
+                            # Keep original time positions (don't shift to t=0)
+                            # The range just filters which points to show
                             if len(range_indices) == 1:
                                 label_suffix += f" [range: {start_idx}-end]"
                             else:
