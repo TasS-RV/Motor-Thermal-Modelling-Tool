@@ -486,26 +486,55 @@ if __name__ == "__main__":
     #     Examples: [20, 1020] means points 20 to 1020, [20] means from point 20 to the end
     #     If specified, only this range will be plotted for this column (data keeps original time positions)
     #     Each column can have its own range, allowing different ranges for different columns
+    #   - "label": string - optional, custom label for the plot line (default: auto-generated)
+    #     Example: "label": "Run 2 - Smoothed Power" overrides the default label format
     #
-    # Example with smoothing and range (per-column):
+    # Note: Y-axis range for the right axis (power/current) is configured separately below using RIGHT_Y_AXIS_RANGE
+    #
+    # Example with smoothing, range, and custom label:
     # COLUMNS_TO_PLOT = {
     #     "Run2-Throttle100": [
-    #         {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 5.0, "range": [20, 1020]},
-    #         {"column": "Current (A)", "smooth": True, "method": "stratified", "window_size": 5.0, "range": [50, 1050]}  # Different range!
+    #         {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 5.0, 
+    #          "range": [20, 1020], "label": "Run 2 - Smoothed Power"},
+    #         {"column": "Current (A)", "smooth": True, "method": "stratified", "window_size": 5.0, 
+    #          "range": [50, 1050], "label": "Run 2 - Current"}
     #     ],
     # }
     #
     # Example with smoothing (full dataset):
     COLUMNS_TO_PLOT = {
         "Run2-Throttle100": [
-            {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 5, "range": [80, 1200]}
+            {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 3, 
+            "range": [80, 1200], "label": "iNetic Stator"}
         ],
         "Run13-Throttle8": [
-            {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 5, "range": [100, 1120]}
+            {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 3, 
+            "range": [100, 1120], "label": "ARES Stator"}
         ],
     }
     
- #   Example without smoothing (commented out):
+    # Right y-axis (power/current) range configuration
+    # Format: [ymin, ymax] for both limits, or just ymin (float) to set minimum only
+    # Set to None to auto-scale based on data
+    RIGHT_Y_AXIS_RANGE = [250, None]  # Example: [100, None] sets minimum to 100, max auto-scales
+    # RIGHT_Y_AXIS_RANGE = [100, 500]  # Example: [100, 500] sets range from 100 to 500
+    # RIGHT_Y_AXIS_RANGE = None  # Example: None for full auto-scale
+    
+    # Temperature plot labels (dictionary: folder_name -> label)
+    # If not specified for a folder, uses default: "{folder_name} - {temperature_param}"
+    TEMPERATURE_LABELS = {
+         "Run2-Throttle100": "iNetic Stator Temperature",
+         "Run13-Throttle8": "ARES Stator Temperature",
+    }
+    
+    # Fitted curve labels (dictionary: folder_name -> label)
+    # If not specified for a folder, uses default: "{folder_name} (fitted)"
+    FITTED_LABELS = {
+         "Run2-Throttle100": "iNetic (fitted lumped thermal model)",
+         "Run13-Throttle8": "ARES (fitted lumped thermal model)",
+    }
+    
+#   Example without smoothing (commented out):
     # COLUMNS_TO_PLOT = {
     #     "Run2-Throttle100": ["Power (W)"],
     #     "Run13-Throttle8": ["Power (W)"],
@@ -524,7 +553,10 @@ if __name__ == "__main__":
     
     # 6. Plot title
     plot_title = "Aligned Temperature and APD Data"
-    
+
+    # 7. APD data label
+    APD_DATA_LABEL = "APD Data (Power - W)"
+
     # 7. Curve fitting time range (in seconds, relative to aligned time)
     # Dictionary with keys: "fit_start_1", "fit_start_2", etc. for each folder (by index)
     fit_start_seconds = {
@@ -629,22 +661,27 @@ if __name__ == "__main__":
             
             # Plot temperature on left y-axis
             if temperature_param in df_merged.columns:
+                # Use custom label if provided, otherwise use default format
+                temp_label = TEMPERATURE_LABELS.get(folder_name, f"{folder_name} - {temperature_param}")
                 ax.plot(df_merged['Time (s)'], df_merged[temperature_param],
-                       label=f"{folder_name} - {temperature_param}", 
+                       label=temp_label, 
                        linewidth=2, marker='o', markersize=3)
             
             # Plot Export columns on right y-axis
             columns_for_folder = COLUMNS_TO_PLOT.get(folder_name, COLUMNS_TO_PLOT.get(list(COLUMNS_TO_PLOT.keys())[0], []))
+            
             for col_spec in columns_for_folder:
                 # Parse column specification
                 if isinstance(col_spec, dict):
                     col_name = col_spec.get('column', '')
                     smooth = col_spec.get('smooth', False)
                     range_indices = col_spec.get('range', None)  # [start_idx, end_idx] or None
+                    custom_label = col_spec.get('label', None)  # Custom label (optional)
                     label_suffix = " (smoothed)" if smooth else ""
                 else:
                     col_name = col_spec
                     range_indices = None
+                    custom_label = None
                     label_suffix = ""
                 
                 if col_name in df_merged.columns:
@@ -676,8 +713,14 @@ if __name__ == "__main__":
                             else:
                                 label_suffix += f" [range: {start_idx}-{end_idx}]"
                     
+                    # Use custom label if provided, otherwise use default format
+                    if custom_label is not None:
+                        plot_label = custom_label
+                    else:
+                        plot_label = f"{folder_name} - {col_name}{label_suffix}"
+                    
                     ax2.plot(time_data, col_data,
-                           label=f"{folder_name} - {col_name}{label_suffix}", 
+                           label=plot_label, 
                            linewidth=1.5, linestyle='--', alpha=0.7)
             
             # RC Thermal Model Fitting
@@ -755,18 +798,41 @@ if __name__ == "__main__":
                                     temp_line_color = line.get_color()
                                     break
                             
+                            # Use custom label if provided, otherwise use default format
+                            fitted_label = FITTED_LABELS.get(folder_name, f"{folder_name} (fitted)")
                             ax.plot(t_pred_absolute, T_pred, '--',
-                                   label=f"{folder_name} (fitted)", 
+                                   label=fitted_label, 
                                    linewidth=2, alpha=0.8, color=temp_line_color if temp_line_color else None)
                             
                         except Exception as e:
                             print(f"\nWarning: Curve fitting failed for {folder_name}: {e}")
         
+        # Set y-axis range for right axis if specified in configuration
+        if RIGHT_Y_AXIS_RANGE is not None:
+            if isinstance(RIGHT_Y_AXIS_RANGE, (list, tuple)) and len(RIGHT_Y_AXIS_RANGE) == 2:
+                ymin, ymax = RIGHT_Y_AXIS_RANGE[0], RIGHT_Y_AXIS_RANGE[1]
+                if ymin is not None and ymax is not None:
+                    ax2.set_ylim(ymin, ymax)
+                elif ymin is not None:
+                    # Only ymin specified, set bottom limit and let top auto-scale
+                    current_ylim = ax2.get_ylim()
+                    ax2.set_ylim(ymin, current_ylim[1])
+                elif ymax is not None:
+                    # Only ymax specified, set top limit and let bottom auto-scale
+                    current_ylim = ax2.get_ylim()
+                    ax2.set_ylim(current_ylim[0], ymax)
+            else:
+                # Single value means set ymin, keep ymax auto
+                current_ylim = ax2.get_ylim()
+                ax2.set_ylim(float(RIGHT_Y_AXIS_RANGE), current_ylim[1])
+        
         # Formatting
         ax.set_xlabel('Time (seconds)', fontsize=12)
         temp_unit = temperature_param.split("(")[-1].split(")")[0] if "(" in temperature_param else "°C"
         ax.set_ylabel(f'Temperature ({temp_unit})', fontsize=12, color='blue')
-        ax2.set_ylabel('APD Data (Current/Power/Throttle)', fontsize=12, color='red')
+        
+        # ANCHOR - this is where the APD data is fitted - the label may be incorrect depending on what we are plotting
+        ax2.set_ylabel(APD_DATA_LABEL, fontsize=12, color='red')
         
         # Color the y-axis labels to match the data
         ax.tick_params(axis='y', labelcolor='blue')
