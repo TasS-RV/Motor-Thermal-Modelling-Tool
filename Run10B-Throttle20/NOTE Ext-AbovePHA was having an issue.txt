@@ -1,0 +1,4 @@
+NOTE: Ext-AbovePHA was having an issue, either due to noise, or disconnection of thermocouple wires resulted in floating voltages and incorrect readings.
+
+
+Also note - look at the image, it is from the fan blowing, at an angle but the Ext-AbovePHC and PHC thermocouples being on the fan facing side, while the PHA and Ext-AbovePHA thermocouple being on the rearward side, and shielded from airflow. Indicates even with small flow, will make a large difference!
