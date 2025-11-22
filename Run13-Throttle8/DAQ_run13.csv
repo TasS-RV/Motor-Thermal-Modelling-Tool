@@ -4,7 +4,7 @@
 "Sample Count: 191"
 "Start Time: 20/11/2025 18:02:33.0"
 "Scan Rate: 1.4190000295639"
-"Sample","Time (s)","Housing (°C)","Winding2 (°C)","Ambient (°C)","Stator Inner (°C)","Winding Temp (°C)"
+"Sample","Time (s)","Stator Body (°C)","Winding2 (°C)","Ambient (°C)","Stator Inner (°C)","Winding Temp (°C)"
 "0","0:00.0","22.165","22.238","21.049","22.081","22.124"
 "1","0:00.7","22.167","22.255","21.057","22.088","22.129"
 "2","0:01.4","22.172","22.260","21.056","22.083","22.129"

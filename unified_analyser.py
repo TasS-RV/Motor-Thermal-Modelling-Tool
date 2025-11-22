@@ -504,27 +504,27 @@ if __name__ == "__main__":
     # Example with smoothing (full dataset):
     COLUMNS_TO_PLOT = {
         "Run2-Throttle100": [
-            {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 1, 
-            "range": [80, 1200], "label": "iNetic Stator"}
+            {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 3, 
+            "range": [30, 1200], "label": "iNetic Stator"}
         ],
         "Run13-Throttle8": [
-            {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 1, 
-            "range": [100, 1120], "label": "ARES Stator"}
+            {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 3, 
+            "range": [80, 1100], "label": "ARES Housing"}
         ],
     }
     
     # Right y-axis (power/current) range configuration
     # Format: [ymin, ymax] for both limits, or just ymin (float) to set minimum only
     # Set to None to auto-scale based on data
-    RIGHT_Y_AXIS_RANGE = [250, None]  # Example: [100, None] sets minimum to 100, max auto-scales
+    RIGHT_Y_AXIS_RANGE = [150, None]  # Example: [100, None] sets minimum to 100, max auto-scales
     # RIGHT_Y_AXIS_RANGE = [100, 500]  # Example: [100, 500] sets range from 100 to 500
     # RIGHT_Y_AXIS_RANGE = None  # Example: None for full auto-scale
     
     # Temperature plot labels (dictionary: folder_name -> label)
     # If not specified for a folder, uses default: "{folder_name} - {temperature_param}"
     TEMPERATURE_LABELS = {
-         "Run2-Throttle100": "iNetic Stator Temperature",
-         "Run13-Throttle8": "ARES Stator Temperature",
+         "Run2-Throttle100": "iNetic Stator Body Temperature",
+         "Run13-Throttle8": "ARES Housing Temperature",
     }
     
     # Fitted curve labels (dictionary: folder_name -> label)
@@ -541,7 +541,7 @@ if __name__ == "__main__":
     # }
     
     # 3. Temperature parameter from DAQ files
-    temperature_param = "Winding Temp (°C)" 
+    temperature_param = "Stator Body (°C)" 
     # For the ARES stator - this corresponds to Winding1 (°C) hooked up to channel 7. The other winding IS cooler, but partly because the thermocouple keeps coming off - it was put at a different location.
     # For the PH3 in Run8 - the header is swapped to get a plot!
 
@@ -561,7 +561,7 @@ if __name__ == "__main__":
     # Dictionary with keys: "fit_start_1", "fit_start_2", etc. for each folder (by index)
     fit_start_seconds = {
         "fit_start_1": 5,  # For first folder in folder_names list
-        "fit_start_2": 12,  # For second folder in folder_names list
+        "fit_start_2": 5,  # For second folder in folder_names list
        # "fit_start_3": 10,  # For third folder in folder_names list
     #    "fit_start_4": 15,  # For third folder in folder_names list
         # Add more as needed: "fit_start_4", etc.
@@ -569,8 +569,8 @@ if __name__ == "__main__":
     
     # Dictionary with keys: "fit_end_1", "fit_end_2", etc. for each folder (by index)
     fit_end_seconds = {
-        "fit_end_1": 100,  # For first folder in folder_names list
-        "fit_end_2": 180,     # For second folder in folder_names list
+        "fit_end_1": 300,  # For first folder in folder_names list
+        "fit_end_2": 300,     # For second folder in folder_names list
     #    "fit_end_3": 190,  # For third folder in folder_names list
         # Add more as needed: "fit_end_4", etc.
     }
