@@ -505,11 +505,11 @@ if __name__ == "__main__":
     COLUMNS_TO_PLOT = {
         "Run2-Throttle100": [
             {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 3, 
-            "range": [30, 1200], "label": "iNetic Rotor temp"}
+            "range": [30, 1200], "label": "iNetic winding temp"}
         ],
         "Run13-Throttle8": [
             {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 3, 
-            "range": [80, 1100], "label": "ARES Rotor temp"}
+            "range": [80, 1100], "label": "ARES winding temp"}
         ],
     }
     
@@ -523,8 +523,8 @@ if __name__ == "__main__":
     # Temperature plot labels (dictionary: folder_name -> label)
     # If not specified for a folder, uses default: "{folder_name} - {temperature_param}"
     TEMPERATURE_LABELS = {
-         "Run2-Throttle100": "iNetic Rotor Body Temperature",
-         "Run13-Throttle8": "ARES Rotor Temperature",
+         "Run2-Throttle100": "iNetic Winding Body Temperature",
+         "Run13-Throttle8": "ARES Winding Temperature",
     }
     
     # Fitted curve labels (dictionary: folder_name -> label)
@@ -560,7 +560,7 @@ if __name__ == "__main__":
     # 7. Curve fitting time range (in seconds, relative to aligned time)
     # Dictionary with keys: "fit_start_1", "fit_start_2", etc. for each folder (by index)
     fit_start_seconds = {
-        "fit_start_1": 5,  # For first folder in folder_names list
+        "fit_start_1": 23,  # For first folder in folder_names list
         "fit_start_2": 5,  # For second folder in folder_names list
        # "fit_start_3": 10,  # For third folder in folder_names list
     #    "fit_start_4": 15,  # For third folder in folder_names list
@@ -569,8 +569,8 @@ if __name__ == "__main__":
     
     # Dictionary with keys: "fit_end_1", "fit_end_2", etc. for each folder (by index)
     fit_end_seconds = {
-        "fit_end_1": 150,  # For first folder in folder_names list
-        "fit_end_2": 60,     # For second folder in folder_names list
+        "fit_end_1": 78,  # For first folder in folder_names list
+        "fit_end_2": 48,     # For second folder in folder_names list
     #    "fit_end_3": 190,  # For third folder in folder_names list
         # Add more as needed: "fit_end_4", etc.
     }
@@ -592,6 +592,34 @@ if __name__ == "__main__":
         "fixed_power_2": 600,  # For second folder in folder_names list (Watts)
         # Add more as needed: "fixed_power_3", etc.
         # Or set to None to skip prediction for that folder
+    }
+    
+    # 10. Plot visibility controls (True/False)
+    # Dictionary with keys: "show_fitted_1", "show_fitted_2", etc. for each folder (by index)
+    # Controls whether to show the fitted thermal model curve
+    show_fitted_curve = {
+        "show_fitted_1": True,  # For first folder in folder_names list
+        "show_fitted_2": True,  # For second folder in folder_names list
+        # Add more as needed: "show_fitted_3", etc.
+        # Default: True if not specified
+    }
+    
+    # Dictionary with keys: "show_const_power_1", "show_const_power_2", etc. for each folder (by index)
+    # Controls whether to show the constant power prediction curve
+    show_const_power_prediction = {
+        "show_const_power_1": True,  # For first folder in folder_names list
+        "show_const_power_2": True,  # For second folder in folder_names list
+        # Add more as needed: "show_const_power_3", etc.
+        # Default: True if not specified
+    }
+    
+    # Dictionary with keys: "show_fit_range_lines_1", "show_fit_range_lines_2", etc. for each folder (by index)
+    # Controls whether to show vertical lines indicating the fitting time range
+    show_fit_range_lines = {
+        "show_fit_range_lines_1": True,  # For first folder in folder_names list
+        "show_fit_range_lines_2": True,  # For second folder in folder_names list
+        # Add more as needed: "show_fit_range_lines_3", etc.
+        # Default: True if not specified
     }
     # ======================================================================
     
@@ -827,35 +855,59 @@ if __name__ == "__main__":
                             
                             # Use custom label if provided, otherwise use default format
                             fitted_label = FITTED_LABELS.get(folder_name, f"{folder_name} (fitted)")
-                            ax.plot(t_pred_absolute, T_pred, '--',
-                                   label=fitted_label, 
-                                   linewidth=2, alpha=0.8, color=temp_line_color if temp_line_color else None)
                             
-                            # Add vertical lines to indicate fitting range
-                            # Get y-axis limits for label positioning
-                            ylim = ax.get_ylim()
-                            y_bottom = ylim[0]
-                            y_range = ylim[1] - ylim[0]
-                            label_y_pos = y_bottom + 0.02 * y_range  # Position label 2% from bottom
+                            # Check if fitted curve should be shown
+                            show_fitted = True
+                            if folder_idx is not None:
+                                show_fitted_key = f"show_fitted_{folder_idx}"
+                                show_fitted = show_fitted_curve.get(show_fitted_key, True)
                             
-                            # Add vertical line at fit_start
-                            ax.axvline(x=fit_start, color='gray', linestyle=':', linewidth=1.5, alpha=0.6)
-                            ax.text(fit_start, label_y_pos, f'Fit start\n{fit_start:.1f}s', 
-                                   ha='center', va='bottom', fontsize=8, color='gray',
-                                   bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.7, edgecolor='gray', linewidth=0.5))
+                            if show_fitted:
+                                ax.plot(t_pred_absolute, T_pred, '--',
+                                       label=fitted_label, 
+                                       linewidth=2, alpha=0.8, color=temp_line_color if temp_line_color else None)
                             
-                            # Add vertical line at fit_end
-                            ax.axvline(x=fit_end, color='gray', linestyle=':', linewidth=1.5, alpha=0.6)
-                            ax.text(fit_end, label_y_pos, f'Fit end\n{fit_end:.1f}s', 
-                                   ha='center', va='bottom', fontsize=8, color='gray',
-                                   bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.7, edgecolor='gray', linewidth=0.5))
+                            # Check if fit range lines should be shown
+                            show_fit_lines = True
+                            if folder_idx is not None:
+                                show_fit_lines_key = f"show_fit_range_lines_{folder_idx}"
+                                show_fit_lines = show_fit_range_lines.get(show_fit_lines_key, True)
+                            
+                            if show_fit_lines:
+                                # Add vertical lines to indicate fitting range
+                                # Get y-axis limits for label positioning
+                                ylim = ax.get_ylim()
+                                y_bottom = ylim[0]
+                                y_range = ylim[1] - ylim[0]
+                                label_y_pos = y_bottom + 0.02 * y_range  # Position label 2% from bottom
+                                
+                                # Create a shorter label for the vertical line annotations
+                                # Use the fitted_label but make it more concise for the annotation
+                                short_label = fitted_label.replace(" (fitted lumped thermal model)", "").replace(" (fitted)", "")
+                                
+                                # Add vertical line at fit_start
+                                ax.axvline(x=fit_start, color='gray', linestyle=':', linewidth=1.5, alpha=0.6)
+                                ax.text(fit_start, label_y_pos, f'{short_label}\nFit start: {fit_start:.1f}s', 
+                                       ha='center', va='bottom', fontsize=8, color='gray',
+                                       bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.7, edgecolor='gray', linewidth=0.5))
+                                
+                                # Add vertical line at fit_end
+                                ax.axvline(x=fit_end, color='gray', linestyle=':', linewidth=1.5, alpha=0.6)
+                                ax.text(fit_end, label_y_pos, f'{short_label}\nFit end: {fit_end:.1f}s', 
+                                       ha='center', va='bottom', fontsize=8, color='gray',
+                                       bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.7, edgecolor='gray', linewidth=0.5))
                             
                             # Constant power prediction
                             if folder_idx is not None:
                                 fixed_power_key = f"fixed_power_{folder_idx}"
                                 fixed_power = fixed_power_input.get(fixed_power_key, None)
                                 
-                                if fixed_power is not None and avg_power is not None and avg_power > 0:
+                                # Check if constant power prediction should be shown
+                                show_const_power = True
+                                show_const_power_key = f"show_const_power_{folder_idx}"
+                                show_const_power = show_const_power_prediction.get(show_const_power_key, True)
+                                
+                                if fixed_power is not None and avg_power is not None and avg_power > 0 and show_const_power:
                                     # Calculate thermal resistance: R_th = (T_inf - T_0) / P_avg
                                     # This assumes T_inf = T_0 + P * R_th
                                     R_th = (T_inf - T_0) / avg_power
