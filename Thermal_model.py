@@ -25,13 +25,13 @@ ins_type = 'aerogel'
 
 # Select insulation material properties
 if ins_type.lower() == 'aerogel':
-    k_ins = 0.02        # W/mK
-    rho_ins = 150       # kg/m3
-    cp_ins = 1000       # J/kgK
+    k_ins = 0.02        # W/mK - conductivity from: https://www.engineeringtoolbox.com/thermal-conductivity-d_429.html
+    rho_ins = 150       # kg/m3 - https://www.mdpi.com/2073-4360/14/7/1456?. Various ranges suggest 30-350 kg/m^3. We are using a rough intermediate value. Alternative from actual supplier: https://www.keepinsulation.com/aerogel/aerogel-felt/silica-aerogel-thermal-insulation-roll.html
+    cp_ins = 1000       # J/kgK - for aerogel this is sensible, perhaps slightly different. Given it is very low density, wiht high proportion of air (>95%).
 elif ins_type.lower() == 'ptfe':
-    k_ins = 0.25
-    rho_ins = 2200
-    cp_ins = 1000
+    k_ins = 0.25  # See below!
+    rho_ins = 2200 # Density and Thermal conducitivity from: https://en.wikipedia.org/wiki/Polytetrafluoroethylene
+    cp_ins = 1010 # Based on the Specific heat at 23C from https://adtech.co.uk/application/files/8516/0500/0920/Adtech_PTFE_General_Properties_2020.pdf
 else:
     k_ins = 0.1
     rho_ins = 500
@@ -52,7 +52,7 @@ T_max_source = 1000.0   # [K] maximum temperature cap for heat source region
 
 # Time stepping
 dt = 0.05               # [s] (will be adjusted if needed for stability)
-t_max = 1000           # [s] - length of time to run the experiment. This will need to be extended ot the running time of the motor
+t_max = 10           # [s] - length of time to run the experiment. This will need to be extended ot the running time of the motor
 save_every = 100         # plot every nth time step (will be adjusted)
 
 # ======================================
