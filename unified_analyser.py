@@ -476,7 +476,7 @@ if __name__ == "__main__":
 
     # 2. Columns from Export_DataAPD files to plot (dictionary: folder_name -> list of columns)
     # 
-    # You can specify columns in three ways:
+    # You can specify columns in three ways - simple string just to plot the raw data, or a variety of parameters to apply filters and smoothing
     # - Simple string: "Power (W)" - plots raw data
     # - Dictionary with smoothing: {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 5.0}
     #   - "smooth": True/False - enable/disable smoothing
@@ -505,11 +505,11 @@ if __name__ == "__main__":
     COLUMNS_TO_PLOT = {
         "Run2-Throttle100": [
             {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 3, 
-            "range": [30, 1200], "label": "iNetic Stator"}
+            "range": [30, 1200], "label": "iNetic Rotor temp"}
         ],
         "Run13-Throttle8": [
             {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 3, 
-            "range": [80, 1100], "label": "ARES Housing"}
+            "range": [80, 1100], "label": "ARES Rotor temp"}
         ],
     }
     
@@ -523,15 +523,15 @@ if __name__ == "__main__":
     # Temperature plot labels (dictionary: folder_name -> label)
     # If not specified for a folder, uses default: "{folder_name} - {temperature_param}"
     TEMPERATURE_LABELS = {
-         "Run2-Throttle100": "iNetic Stator Body Temperature",
-         "Run13-Throttle8": "ARES Housing Temperature",
+         "Run2-Throttle100": "iNetic Rotor Body Temperature",
+         "Run13-Throttle8": "ARES Rotor Temperature",
     }
     
     # Fitted curve labels (dictionary: folder_name -> label)
     # If not specified for a folder, uses default: "{folder_name} (fitted)"
     FITTED_LABELS = {
-         "Run2-Throttle100": "iNetic (fitted lumped thermal model)",
-         "Run13-Throttle8": "ARES (fitted lumped thermal model)",
+         "Run2-Throttle100": "iNetic (lumped thermal)",
+         "Run13-Throttle8": "ARES (lumped thermal)",
     }
     
 #   Example without smoothing (commented out):
@@ -541,7 +541,7 @@ if __name__ == "__main__":
     # }
     
     # 3. Temperature parameter from DAQ files
-    temperature_param = "Stator Body (°C)" 
+    temperature_param = "Winding Temp (°C)" 
     # For the ARES stator - this corresponds to Winding1 (°C) hooked up to channel 7. The other winding IS cooler, but partly because the thermocouple keeps coming off - it was put at a different location.
     # For the PH3 in Run8 - the header is swapped to get a plot!
 
@@ -569,8 +569,8 @@ if __name__ == "__main__":
     
     # Dictionary with keys: "fit_end_1", "fit_end_2", etc. for each folder (by index)
     fit_end_seconds = {
-        "fit_end_1": 300,  # For first folder in folder_names list
-        "fit_end_2": 300,     # For second folder in folder_names list
+        "fit_end_1": 150,  # For first folder in folder_names list
+        "fit_end_2": 60,     # For second folder in folder_names list
     #    "fit_end_3": 190,  # For third folder in folder_names list
         # Add more as needed: "fit_end_4", etc.
     }
@@ -582,6 +582,16 @@ if __name__ == "__main__":
         "prediction_limit_2": 200,   # For second folder in folder_names list
         # Add more as needed: "prediction_limit_4", etc.
         # Or set to None for a folder to use default (1.5x max time)
+    }
+    
+    # 9. Fixed power input for constant power predictions (Watts)
+    # Dictionary with keys: "fixed_power_1", "fixed_power_2", etc. for each folder (by index)
+    # Set to None to skip constant power prediction for that folder
+    fixed_power_input = {
+        "fixed_power_1": 600,  # For first folder in folder_names list (Watts)
+        "fixed_power_2": 600,  # For second folder in folder_names list (Watts)
+        # Add more as needed: "fixed_power_3", etc.
+        # Or set to None to skip prediction for that folder
     }
     # ======================================================================
     
@@ -765,18 +775,35 @@ if __name__ == "__main__":
                             T_inf, T_0, tau = popt
                             time_offset = fit_data['Time (s)'].iloc[0]
                             
+                            # Extract average power during fitting period
+                            # Look for power column in the merged data
+                            power_col = None
+                            for col in df_merged.columns:
+                                if 'Power' in col and '(W)' in col:
+                                    power_col = col
+                                    break
+                            
+                            avg_power = None
+                            if power_col and power_col in fit_data.columns:
+                                power_data = fit_data[power_col].dropna()
+                                if len(power_data) > 0:
+                                    avg_power = power_data.mean()
+                            
                             fitted_functions.append({
                                 'folder': folder_name,
                                 'T_inf': T_inf,
                                 'T_0': T_0,
                                 'tau': tau,
-                                'time_offset': time_offset
+                                'time_offset': time_offset,
+                                'avg_power': avg_power
                             })
                             
                             # Print fitted parameters
                             print(f"\n{folder_name} - Fitted RC Thermal Model:")
                             print(f"  T(t) = {T_inf:.2f} - ({T_inf:.2f} - {T_0:.2f}) * exp(-(t-{time_offset:.1f})/{tau:.2f})")
                             print(f"  Parameters: T_inf={T_inf:.2f}°C, T_0={T_0:.2f}°C, tau={tau:.2f}s")
+                            if avg_power is not None:
+                                print(f"  Average power during fit: {avg_power:.2f}W")
                             
                             # Prediction range
                             pred_end = None
@@ -803,6 +830,48 @@ if __name__ == "__main__":
                             ax.plot(t_pred_absolute, T_pred, '--',
                                    label=fitted_label, 
                                    linewidth=2, alpha=0.8, color=temp_line_color if temp_line_color else None)
+                            
+                            # Add vertical lines to indicate fitting range
+                            # Get y-axis limits for label positioning
+                            ylim = ax.get_ylim()
+                            y_bottom = ylim[0]
+                            y_range = ylim[1] - ylim[0]
+                            label_y_pos = y_bottom + 0.02 * y_range  # Position label 2% from bottom
+                            
+                            # Add vertical line at fit_start
+                            ax.axvline(x=fit_start, color='gray', linestyle=':', linewidth=1.5, alpha=0.6)
+                            ax.text(fit_start, label_y_pos, f'Fit start\n{fit_start:.1f}s', 
+                                   ha='center', va='bottom', fontsize=8, color='gray',
+                                   bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.7, edgecolor='gray', linewidth=0.5))
+                            
+                            # Add vertical line at fit_end
+                            ax.axvline(x=fit_end, color='gray', linestyle=':', linewidth=1.5, alpha=0.6)
+                            ax.text(fit_end, label_y_pos, f'Fit end\n{fit_end:.1f}s', 
+                                   ha='center', va='bottom', fontsize=8, color='gray',
+                                   bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.7, edgecolor='gray', linewidth=0.5))
+                            
+                            # Constant power prediction
+                            if folder_idx is not None:
+                                fixed_power_key = f"fixed_power_{folder_idx}"
+                                fixed_power = fixed_power_input.get(fixed_power_key, None)
+                                
+                                if fixed_power is not None and avg_power is not None and avg_power > 0:
+                                    # Calculate thermal resistance: R_th = (T_inf - T_0) / P_avg
+                                    # This assumes T_inf = T_0 + P * R_th
+                                    R_th = (T_inf - T_0) / avg_power
+                                    
+                                    # Calculate new T_inf for fixed power: T_inf_new = T_0 + P_fixed * R_th
+                                    T_inf_fixed = T_0 + fixed_power * R_th
+                                    
+                                    # Generate prediction with fixed power
+                                    T_pred_fixed = rc_thermal_model(t_pred, T_inf_fixed, T_0, tau)
+                                    
+                                    # Plot constant power prediction
+                                    ax.plot(t_pred_absolute, T_pred_fixed, ':',
+                                           label="Modelled temp rise for const power input", 
+                                           linewidth=2, alpha=0.7, color=temp_line_color if temp_line_color else None)
+                                    
+                                    print(f"  Constant power prediction: P={fixed_power:.2f}W -> T_inf={T_inf_fixed:.2f}°C (R_th={R_th:.4f}°C/W)")
                             
                         except Exception as e:
                             print(f"\nWarning: Curve fitting failed for {folder_name}: {e}")
