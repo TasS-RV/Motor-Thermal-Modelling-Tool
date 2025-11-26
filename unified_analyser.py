@@ -560,8 +560,8 @@ if __name__ == "__main__":
     # 7. Curve fitting time range (in seconds, relative to aligned time)
     # Dictionary with keys: "fit_start_1", "fit_start_2", etc. for each folder (by index)
     fit_start_seconds = {
-        "fit_start_1": 23,  # For first folder in folder_names list
-        "fit_start_2": 5,  # For second folder in folder_names list
+        "fit_start_1": 5,  # For first folder in folder_names list
+        "fit_start_2": 80,  # For second folder in folder_names list
        # "fit_start_3": 10,  # For third folder in folder_names list
     #    "fit_start_4": 15,  # For third folder in folder_names list
         # Add more as needed: "fit_start_4", etc.
@@ -569,8 +569,8 @@ if __name__ == "__main__":
     
     # Dictionary with keys: "fit_end_1", "fit_end_2", etc. for each folder (by index)
     fit_end_seconds = {
-        "fit_end_1": 78,  # For first folder in folder_names list
-        "fit_end_2": 48,     # For second folder in folder_names list
+        "fit_end_1": 120,  # For first folder in folder_names list
+        "fit_end_2": 112,     # For second folder in folder_names list
     #    "fit_end_3": 190,  # For third folder in folder_names list
         # Add more as needed: "fit_end_4", etc.
     }
@@ -578,8 +578,8 @@ if __name__ == "__main__":
     # 8. Prediction time limits (in seconds) - how far to extend the fitted curve
     # Dictionary with keys: "prediction_limit_1", "prediction_limit_2", etc. for each folder (by index)
     prediction_time_limit_seconds = {
-        "prediction_limit_1": 200,  # For first folder in folder_names list
-        "prediction_limit_2": 200,   # For second folder in folder_names list
+        "prediction_limit_1": 120,  # For first folder in folder_names list
+        "prediction_limit_2": 120,   # For second folder in folder_names list
         # Add more as needed: "prediction_limit_4", etc.
         # Or set to None for a folder to use default (1.5x max time)
     }
@@ -607,8 +607,8 @@ if __name__ == "__main__":
     # Dictionary with keys: "show_const_power_1", "show_const_power_2", etc. for each folder (by index)
     # Controls whether to show the constant power prediction curve
     show_const_power_prediction = {
-        "show_const_power_1": True,  # For first folder in folder_names list
-        "show_const_power_2": True,  # For second folder in folder_names list
+        "show_const_power_1": False,  # For first folder in folder_names list
+        "show_const_power_2": False,  # For second folder in folder_names list
         # Add more as needed: "show_const_power_3", etc.
         # Default: True if not specified
     }
