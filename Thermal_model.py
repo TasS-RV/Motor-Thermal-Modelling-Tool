@@ -44,7 +44,7 @@ rho_air = 1.225         # kg/m3
 cp_air = 1005           # J/kgK
 
 # Heat source - distributed over small area at center
-enable_internal_heat_source = True  # Set to False to disable internal heat source and validate boundary heating alone
+enable_internal_heat_source = False  # Set to False to disable internal heat source and validate boundary heating alone
 Q_total = 8.0           # [W] total heat (distributed over small region) - set to 0 if enable_internal_heat_source is False
 
 # Boundary temperatures - all temperatures are set in kelvin
@@ -53,14 +53,14 @@ T_init = 293.0          # [K] starting temp (20°C)
 T_max_source = 500.0   # [K] maximum temperature cap for heat source region
 
 # Time stepping
-dt = 0.05               # [s] (will be adjusted if needed for stability)
-t_max = 3600           # [s] - length of time to run the experiment. This will need to be extended ot the running time of the motor
-save_every = 50        # plot every nth time step (will be adjusted)
+dt = 0.2               # [s] (will be adjusted if needed for stability)
+t_max = 60          # [s] - length of time to run the experiment. This will need to be extended ot the running time of the motor
+save_period = 4.0      # [s] time period between saved frames (save_every will be automatically calculated based on actual dt)
 
 # Image saving
-num_snapshots = 10      # number of snapshot images to save (evenly distributed over total time)
-save_snapshots = True   # set to False to disable snapshot saving
-snapshot_folder = "Snapshots - large heat source, 500 C, 40 local cell width"  # folder name to save snapshots
+num_snapshots = 5      # number of snapshot images to save (evenly distributed over total time)
+save_snapshots = False   # set to False to disable snapshot saving
+snapshot_folder = "Fast exp, local heat source, coarse time step"  # folder name to save snapshots
 
 # Animation speed
 playback_speed_ratio = 60.0  # e.g., 60 means 1 hour of simulation plays in 60 seconds (60x speed)
@@ -78,7 +78,11 @@ dt_stable = 0.4 * dx**2 / (4 * alpha_max)  # Use 0.4 for safety margin
 if dt_stable < dt:  # Only override if calculated dt is smaller
     dt = dt_stable
     print(f"Time step adjusted to {dt:.6f} s for numerical stability")
-save_every = max(1, int(0.1 / dt))  # save roughly every 0.1 s
+
+# Calculate save_every based on desired time period and actual time step
+save_every = max(1, int(save_period / dt))  # save every save_period seconds
+actual_save_period = save_every * dt  # actual time period achieved (may be slightly different due to integer rounding)
+print(f"Frame saving: every {save_every} time steps = {actual_save_period:.3f} s (requested: {save_period:.3f} s)")
 
 x = np.linspace(0, L_total, Nx)
 y = np.linspace(0, L_total, Ny)
@@ -197,15 +201,24 @@ print(f"  Estimated boundary heat transfer: {estimated_boundary_heat:.2f} W")
 
 # Distribute power evenly over all source cells (if enabled)
 if enable_internal_heat_source and source_cells > 0 and Q_total > 0:
-    Q_per_cell = Q_total / source_cells  # [W] per cell
+    # IMPORTANT: Q_total is the TOTAL power distributed over ALL source cells, not per cell!
+    Q_per_cell = Q_total / source_cells  # [W] per cell = total power / number of cells
     Q_rate_per_cell = Q_per_cell / (rho_air * cp_air * vol_per_cell)  # [K/s] per cell
-    Q_map = Q_map * Q_rate_per_cell
+    
+    # Verify total power: Q_per_cell * source_cells should equal Q_total
+    total_power_check = Q_per_cell * source_cells
+    
+    Q_map = Q_map * Q_rate_per_cell  # Multiply Q_map (1.0 in source cells) by the heating rate
     
     print(f"\nInternal heat source details:")
-    print(f"  Distributed over {source_cells} cells ({source_size_cells}×{source_size_cells} region)")
-    print(f"  Power per cell: {Q_per_cell:.4f} W")
+    print(f"  Source region: {source_size_cells}×{source_size_cells} cells = {source_size_cells*source_size_cells} max cells")
+    print(f"  Valid source cells (in air region): {source_cells} cells")
+    print(f"  TOTAL power: {Q_total:.4f} W (distributed over ALL {source_cells} cells)")
+    print(f"  Power per cell: {Q_total:.4f} W / {source_cells} cells = {Q_per_cell:.6f} W/cell")
+    print(f"  Verification: {Q_per_cell:.6f} W/cell × {source_cells} cells = {total_power_check:.4f} W ✓")
     print(f"  Cell volume: {vol_per_cell*1e9:.2f} mm³")
-    print(f"  Temperature rate per cell (if isolated): {Q_rate_per_cell:.2f} K/s")
+    print(f"  Temperature rate per cell (if isolated): {Q_rate_per_cell:.4f} K/s")
+    print(f"  → Larger source region ({source_size_cells}×{source_size_cells}) means GENTLER heating (less power per cell)")
     print(f"\n  Boundary heat / Internal heat = {estimated_boundary_heat/Q_total:.1f}x")
     print(f"  → The {Q_total}W internal source should be MINOR compared to boundary heating!")
     print(f"  → Final temperature should be dominated by boundary temp (~{T_ext-273.15:.0f}°C)")
@@ -282,7 +295,7 @@ print(f"\n=== SIMULATION ===")
 print(f"Total time steps: {n_steps:,}")
 print(f"Simulation time: {t_max:.1f} s ({t_max/3600:.2f} hours)")
 print(f"Time step: {dt:.6f} s")
-print(f"Saving every {save_every} steps (~{save_every*dt:.1f} s)")
+print(f"Saving every {save_every} steps = every {actual_save_period:.3f} s (requested: every {save_period:.3f} s)")
 print(f"Expected frames: ~{n_steps//save_every:,}\n")
 
 # Create progress bar
