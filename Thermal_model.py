@@ -13,14 +13,14 @@ except ImportError:
 # ==============================
 
 # Geometry
-L_air = 0.080          # [m] air cavity width (94 mm)
-t_ins = 0.014          # [m] insulation thickness (variable)
-L_outside = 0.02       # [m] outside world visualization (10 mm)
+L_air = 0.086          # [m] air cavity width
+t_ins = 0.004          # [m] insulation thickness (variable)
+L_outside = 0.02       # [m] outside world visualization (20 mm)
 L_total = L_air + 2*t_ins + 2*L_outside  # total domain width
 Nx, Ny = 120, 120      # grid resolution (increased to show outside)
 
 # Thermal properties
-# options: 'aerogel', 'ptfe', or 'custom'
+# options: 'aerogel', 'ptfe', or 'custom' - this does NOT consider another further layer. It also assumes worst case of the metal interface being 100% conductive, and neglegible thickness.
 ins_type = 'aerogel'   
 
 # Select insulation material properties
@@ -129,12 +129,17 @@ if not mask_air[i_center, j_center]:
 
 # Heat source: distribute 8W over a small area (not a single point to avoid unrealistic temps)
 # Physical depth in z-direction (perpendicular to 2D plane)
-depth = 0.055  # [m] depth in z-direction (55 mm - typical for this geometry)
+space_length = 0.120 # [m] - 120 mm specified based on the RFQ
+depth = space_length - (0.015 - 2*0.008 - 2*0.008) # [m] depth in z-direction: stack length + 2*winding_overhang + 2*insulation_thickness + end_frame_thickness
 vol_per_cell = dx*dx*depth  # volume per cell [m³]
 
 # Create a small heat source region (e.g., 3x3 or 5x5 cells around center)
 # This prevents unrealistic temperature spikes from point sources
-source_size_cells = 3  # Use 3x3 cell region for heat source
+source_size_cells = 3  # Use 3x3 cell region for heat source 
+""" 
+Note that, although the heat source around the cell would suggest the electronics components around it are being cooked, we are really interested in the average temperature of the air inside. 
+Ideally the 8 W heat source IS a singularity, but for it to be a heat source, it DOES still need a temperature, for the physics equations to be resolved ocrrectly.
+"""
 source_radius_cells = source_size_cells // 2
 
 # Find all cells in the heat source region
