@@ -44,22 +44,23 @@ rho_air = 1.225         # kg/m3
 cp_air = 1005           # J/kgK
 
 # Heat source - distributed over small area at center
-Q_total = 8.0           # [W] total heat (distributed over small region)
+enable_internal_heat_source = True  # Set to False to disable internal heat source and validate boundary heating alone
+Q_total = 8.0           # [W] total heat (distributed over small region) - set to 0 if enable_internal_heat_source is False
 
 # Boundary temperatures - all temperatures are set in kelvin
 T_ext = 273.15 + 170.0  # [K] oil bath at 170°C
 T_init = 293.0          # [K] starting temp (20°C)
-T_max_source = 800.0   # [K] maximum temperature cap for heat source region
+T_max_source = 500.0   # [K] maximum temperature cap for heat source region
 
 # Time stepping
 dt = 0.05               # [s] (will be adjusted if needed for stability)
-t_max = 10           # [s] - length of time to run the experiment. This will need to be extended ot the running time of the motor
-save_every = 100         # plot every nth time step (will be adjusted)
+t_max = 3600           # [s] - length of time to run the experiment. This will need to be extended ot the running time of the motor
+save_every = 50        # plot every nth time step (will be adjusted)
 
 # Image saving
 num_snapshots = 10      # number of snapshot images to save (evenly distributed over total time)
 save_snapshots = True   # set to False to disable snapshot saving
-snapshot_folder = "snapshots"  # folder name to save snapshots
+snapshot_folder = "Snapshots - large heat source, 500 C, 40 local cell width"  # folder name to save snapshots
 
 # Animation speed
 playback_speed_ratio = 60.0  # e.g., 60 means 1 hour of simulation plays in 60 seconds (60x speed)
@@ -136,6 +137,11 @@ if not mask_air[i_center, j_center]:
     j_center = air_indices[1][nearest_idx]
     print(f"Adjusted to nearest air point: ({i_center}, {j_center})")
 
+
+
+"""
+ANCHOR: modify heat source parameters here!
+"""
 # Heat source: distribute 8W over a small area (not a single point to avoid unrealistic temps)
 # Physical depth in z-direction (perpendicular to 2D plane)
 space_length = 0.120 # [m] - 120 mm specified based on the RFQ
@@ -144,10 +150,12 @@ vol_per_cell = dx*dx*depth  # volume per cell [m³]
 
 # Create a small heat source region (e.g., 3x3 or 5x5 cells around center)
 # This prevents unrealistic temperature spikes from point sources
-source_size_cells = 3  # Use 3x3 cell region for heat source 
+source_size_cells = 40  # Use 40x40 cell region for heat source 
 """ 
 Note that, although the heat source around the cell would suggest the electronics components around it are being cooked, we are really interested in the average temperature of the air inside. 
 Ideally the 8 W heat source IS a singularity, but for it to be a heat source, it DOES still need a temperature, for the physics equations to be resolved ocrrectly.
+
+When the source is too small, then the local heating rate is too high causing ridiculous/ cell temperature rise computations, but this is wrong.
 """
 source_radius_cells = source_size_cells // 2
 
@@ -164,17 +172,55 @@ for di in range(-source_radius_cells, source_radius_cells + 1):
             Q_map[i_src, j_src] = 1.0
             source_cells += 1
 
-# Distribute power evenly over all source cells
-if source_cells > 0:
+# Calculate expected boundary heat flux for comparison (always calculate for physics check)
+area_per_side = L_air * depth  # area of one side of air cavity
+total_insulation_area = 4 * area_per_side + 2 * L_air * L_air  # 4 vertical + 2 horizontal sides
+heat_flux_through_insulation = k_ins * (T_ext - T_init) / t_ins  # W/m²
+estimated_boundary_heat = heat_flux_through_insulation * total_insulation_area  # W
+
+# Print physics check
+print(f"\n=== HEAT SOURCE PHYSICS CHECK ===")
+print(f"Internal heat source enabled: {enable_internal_heat_source}")
+if enable_internal_heat_source:
+    print(f"Internal heat source: {Q_total} W")
+else:
+    print(f"Internal heat source: DISABLED (0 W) - validating boundary heating alone")
+    Q_total = 0.0  # Override to zero if disabled
+
+print(f"\nBoundary heating:")
+print(f"  Boundary temp: {T_ext:.1f} K ({T_ext-273.15:.1f}°C)")
+print(f"  Initial temp: {T_init:.1f} K ({T_init-273.15:.1f}°C)")
+print(f"  Temperature difference: {T_ext - T_init:.1f} K")
+print(f"  Insulation area: {total_insulation_area*1e4:.2f} cm²")
+print(f"  Heat flux: {heat_flux_through_insulation:.1f} W/m²")
+print(f"  Estimated boundary heat transfer: {estimated_boundary_heat:.2f} W")
+
+# Distribute power evenly over all source cells (if enabled)
+if enable_internal_heat_source and source_cells > 0 and Q_total > 0:
     Q_per_cell = Q_total / source_cells  # [W] per cell
     Q_rate_per_cell = Q_per_cell / (rho_air * cp_air * vol_per_cell)  # [K/s] per cell
     Q_map = Q_map * Q_rate_per_cell
-    print(f"Heat source: {Q_total} W distributed over {source_cells} cells ({source_size_cells}×{source_size_cells} region)")
-    print(f"Power per cell: {Q_per_cell:.4f} W")
-    print(f"Temperature rate per cell: {Q_rate_per_cell:.4f} K/s")
-else:
-    print("Warning: No valid heat source cells found!")
+    
+    print(f"\nInternal heat source details:")
+    print(f"  Distributed over {source_cells} cells ({source_size_cells}×{source_size_cells} region)")
+    print(f"  Power per cell: {Q_per_cell:.4f} W")
+    print(f"  Cell volume: {vol_per_cell*1e9:.2f} mm³")
+    print(f"  Temperature rate per cell (if isolated): {Q_rate_per_cell:.2f} K/s")
+    print(f"\n  Boundary heat / Internal heat = {estimated_boundary_heat/Q_total:.1f}x")
+    print(f"  → The {Q_total}W internal source should be MINOR compared to boundary heating!")
+    print(f"  → Final temperature should be dominated by boundary temp (~{T_ext-273.15:.0f}°C)")
+    print(f"  → The internal source will only create a small local temperature rise")
+elif enable_internal_heat_source:
+    print("\nWarning: No valid heat source cells found! Internal heat source disabled.")
     Q_map = np.zeros_like(T)
+else:
+    # Internal heat source disabled - zero out Q_map
+    Q_map = np.zeros_like(T)
+    print(f"\n  Internal heat source is DISABLED")
+    print(f"  → Temperature should be dominated entirely by boundary heating")
+    print(f"  → Final temperature should approach boundary temp ({T_ext-273.15:.0f}°C)")
+
+print()  # Empty line for readability
 
 # Calculate volumes
 n_air_cells = np.sum(mask_air)
@@ -465,6 +511,17 @@ print(f"  Outside world visualization: {L_outside*1000:.1f} mm")
 print(f"Heat source location: center at ({cx*1000:.1f} mm, {cy*1000:.1f} mm), distributed over {source_cells} cells")
 print(f"Initial air temperature: {T_init:.1f} K ({T_init-273.15:.1f}°C)")
 print(f"Boundary/Outside temperature: {T_ext:.1f} K ({T_ext-273.15:.1f}°C) - constant")
-print(f"Final temperature around heat source: {source_temps[-1]:.2f} K ({source_temps[-1]-273.15:.2f}°C)")
-print(f"Final average air temperature: {inner_temps[-1]:.2f} K ({inner_temps[-1]-273.15:.2f}°C)")
-print(f"Maximum temperature around heat source reached: {max(source_temps):.2f} K ({max(source_temps)-273.15:.2f}°C)")
+print(f"\nTemperature Evolution:")
+print(f"  Final average air temperature: {inner_temps[-1]:.2f} K ({inner_temps[-1]-273.15:.2f}°C)")
+print(f"  Final temperature around heat source: {source_temps[-1]:.2f} K ({source_temps[-1]-273.15:.2f}°C)")
+print(f"  Maximum temperature around heat source: {max(source_temps):.2f} K ({max(source_temps)-273.15:.2f}°C)")
+print(f"\nPhysics Check:")
+print(f"  Boundary temp: {T_ext:.1f} K ({T_ext-273.15:.1f}°C)")
+print(f"  Final avg air temp: {inner_temps[-1]:.2f} K ({inner_temps[-1]-273.15:.2f}°C)")
+temp_rise_due_to_boundary = inner_temps[-1] - T_init
+temp_rise_to_boundary = T_ext - T_init
+print(f"  Temperature rise: {temp_rise_due_to_boundary:.1f} K ({temp_rise_due_to_boundary:.1f}°C) out of {temp_rise_to_boundary:.1f} K possible")
+if temp_rise_to_boundary > 0:
+    print(f"  Progress toward boundary temp: {100*temp_rise_due_to_boundary/temp_rise_to_boundary:.1f}%")
+    print(f"  Expected: Average temp should approach boundary temp ({T_ext-273.15:.1f}°C)")
+    print(f"  The {Q_total}W internal source creates only a local hot spot; boundary heating dominates overall temp.")
