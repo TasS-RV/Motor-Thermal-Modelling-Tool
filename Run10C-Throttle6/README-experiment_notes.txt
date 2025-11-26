@@ -1,3 +1,0 @@
-NOTE: Ext-AbovePhA was having an issue - no disconnection issues, likely some sort of noise coupling from the magnetic field. Even though multiple Ferrite beads are located along that line.
-
-There is also a brief pause - where the throttle is turned off due to temperature concerns, but this is a random error from the user mistaking the 'noisy' reading of Ext-AbovePhA thermocouple as going over 200C. However, given temps. were around 140 C in PhA and PhC thermocouples, much of the initial thermal heating data was collected hence the exponential fitting function is still valid for the first chunk of the experiment.
