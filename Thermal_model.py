@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+import os
 try:
     from tqdm import tqdm
     HAS_TQDM = True
@@ -45,15 +46,23 @@ cp_air = 1005           # J/kgK
 # Heat source - distributed over small area at center
 Q_total = 8.0           # [W] total heat (distributed over small region)
 
-# Boundary temperatures
-T_ext = 273.15 + 270.0  # [K] oil bath at 270°C
+# Boundary temperatures - all temperatures are set in kelvin
+T_ext = 273.15 + 170.0  # [K] oil bath at 170°C
 T_init = 293.0          # [K] starting temp (20°C)
-T_max_source = 1000.0   # [K] maximum temperature cap for heat source region
+T_max_source = 800.0   # [K] maximum temperature cap for heat source region
 
 # Time stepping
 dt = 0.05               # [s] (will be adjusted if needed for stability)
 t_max = 10           # [s] - length of time to run the experiment. This will need to be extended ot the running time of the motor
 save_every = 100         # plot every nth time step (will be adjusted)
+
+# Image saving
+num_snapshots = 10      # number of snapshot images to save (evenly distributed over total time)
+save_snapshots = True   # set to False to disable snapshot saving
+snapshot_folder = "snapshots"  # folder name to save snapshots
+
+# Animation speed
+playback_speed_ratio = 60.0  # e.g., 60 means 1 hour of simulation plays in 60 seconds (60x speed)
 
 # ======================================
 # SETUP COMPUTATIONAL GRID AND PROPERTIES
@@ -193,6 +202,14 @@ print(f"  Total insulation volume: {total_ins_volume*1e9:.2f} mm³ ({total_ins_v
 print(f"  Expected (geometric): {expected_ins_volume*1e9:.2f} mm³ ({expected_ins_volume*1e-6:.4f} L)") 
 
 # ====================================
+# PLOTTING PARAMETERS (defined early for snapshot saving)
+# ====================================
+T_plot_min = T_init  # Start at 20°C (293K)
+T_plot_max = T_ext + 50.0  # Go slightly above oil bath (270°C = 543K, so up to ~593K)
+ticks_k = np.array([293, 350, 400, 450, 500, 543, 593])  # Key temps in K for colorbar
+tick_labels = [f'{T:.0f}K\n({T-273.15:.0f}°C)' for T in ticks_k]
+
+# ====================================
 # TIME INTEGRATION LOOP
 # ====================================
 n_steps = int(t_max / dt)
@@ -200,6 +217,20 @@ frames = []  # store temperature fields
 time_points = []
 inner_temps = []
 source_temps = []  # track temperature at heat source location
+
+# Calculate snapshot save times (evenly distributed)
+snapshot_times = []
+snapshot_save_indices = []
+if save_snapshots and num_snapshots > 0:
+    snapshot_interval = t_max / num_snapshots if num_snapshots > 1 else t_max
+    for i in range(num_snapshots):
+        t_snapshot = (i + 1) * snapshot_interval
+        if t_snapshot <= t_max:
+            snapshot_times.append(t_snapshot)
+            snapshot_save_indices.append(int(t_snapshot / dt))
+    # Create snapshot folder
+    os.makedirs(snapshot_folder, exist_ok=True)
+    print(f"Will save {len(snapshot_times)} snapshots at times: {[f'{t:.1f}s' for t in snapshot_times]}")
 
 print(f"\n=== SIMULATION ===")
 print(f"Total time steps: {n_steps:,}")
@@ -280,6 +311,41 @@ for n in iterator:
     # Save for visualization
     if n % save_every == 0:
         frames.append(T.copy())
+    
+    # Save snapshots at specified times
+    if save_snapshots and n in snapshot_save_indices:
+        snapshot_idx = snapshot_save_indices.index(n)
+        t_snapshot = snapshot_times[snapshot_idx]
+        
+        # Create snapshot figure
+        fig_snap, ax_snap = plt.subplots(figsize=(10, 10))
+        im_snap = ax_snap.imshow(T, extent=[0, L_total*1000, 0, L_total*1000], origin='lower',
+                                 cmap='inferno', vmin=T_plot_min, vmax=T_plot_max)
+        ax_snap.set_title(f"Temperature field at t = {t_snapshot:.1f} s ({t_snapshot/60:.1f} min)")
+        
+        # Draw boundaries
+        ax_snap.axvline(x=(L_outside+t_ins)*1000, color='cyan', linestyle='--', linewidth=2, alpha=0.7)
+        ax_snap.axvline(x=(L_total-L_outside-t_ins)*1000, color='cyan', linestyle='--', linewidth=2, alpha=0.7)
+        ax_snap.axhline(y=(L_outside+t_ins)*1000, color='cyan', linestyle='--', linewidth=2, alpha=0.7)
+        ax_snap.axhline(y=(L_total-L_outside-t_ins)*1000, color='cyan', linestyle='--', linewidth=2, alpha=0.7)
+        ax_snap.axvline(x=L_outside*1000, color='yellow', linestyle='--', linewidth=2, alpha=0.7)
+        ax_snap.axvline(x=(L_total-L_outside)*1000, color='yellow', linestyle='--', linewidth=2, alpha=0.7)
+        ax_snap.axhline(y=L_outside*1000, color='yellow', linestyle='--', linewidth=2, alpha=0.7)
+        ax_snap.axhline(y=(L_total-L_outside)*1000, color='yellow', linestyle='--', linewidth=2, alpha=0.7)
+        ax_snap.plot(cx*1000, cy*1000, 'r*', markersize=15)
+        
+        cbar_snap = plt.colorbar(im_snap, label='Temperature [K]', ax=ax_snap)
+        cbar_snap.ax.set_ylabel('Temperature [K]', rotation=270, labelpad=20)
+        cbar_snap.set_ticks(ticks_k)
+        cbar_snap.set_ticklabels(tick_labels)
+        ax_snap.set_xlabel('x [mm]')
+        ax_snap.set_ylabel('y [mm]')
+        
+        # Save snapshot
+        snapshot_filename = os.path.join(snapshot_folder, f"snapshot_{snapshot_idx+1:03d}_t{t_snapshot:.1f}s.png")
+        plt.savefig(snapshot_filename, dpi=150, bbox_inches='tight')
+        plt.close(fig_snap)
+        print(f"Saved snapshot {snapshot_idx+1}/{len(snapshot_times)}: {snapshot_filename}")
 
 # Simulation complete
 if not HAS_TQDM:
@@ -291,12 +357,43 @@ print(f"Final temperature around heat source: {source_temps[-1]-273.15:.2f}°C\n
 # ====================================
 # PLOTTING RESULTS
 # ====================================
+# Calculate animation interval based on playback speed
+# Strategy: Use a fast frame rate (10ms) and skip frames to achieve desired speedup
+if len(frames) > 0:
+    time_per_frame = save_every * dt  # simulation time represented by each frame [s]
+    
+    # Target animation frame rate - use faster interval for speedup
+    # For 60x speedup, we want to show 1 hour in 60 seconds = 1 second per minute of simulation
+    target_frame_interval_ms = 10.0  # milliseconds between animation frames (faster for speedup)
+    
+    # Calculate desired total animation time
+    desired_animation_time = t_max / playback_speed_ratio  # seconds
+    
+    # Calculate how many frames we can show in that time
+    max_frames_in_time = int(desired_animation_time * 1000 / target_frame_interval_ms)
+    
+    # Calculate frame skip to achieve this
+    frame_skip = max(1, int(np.ceil(len(frames) / max_frames_in_time))) if max_frames_in_time > 0 else 1
+    
+    # Actual animation interval
+    animation_interval = target_frame_interval_ms
+    
+    print(f"Each saved frame represents {time_per_frame:.3f} s of simulation time")
+    print(f"Desired animation time: {desired_animation_time:.2f} s (to show {t_max:.1f} s at {playback_speed_ratio}x speed)")
+    print(f"Frame skip: {frame_skip} (showing every {frame_skip}th frame)")
+    print(f"Animation interval: {animation_interval:.1f} ms per frame")
+    num_animation_frames = len(frames) // frame_skip + (1 if len(frames) % frame_skip > 0 else 0)
+    total_animation_time = num_animation_frames * animation_interval / 1000.0
+    actual_speedup = t_max / total_animation_time if total_animation_time > 0 else 1
+    print(f"Total animation: {num_animation_frames} frames playing over {total_animation_time:.2f} s")
+    print(f"This shows {t_max:.1f} s of simulation at {actual_speedup:.1f}x speed")
+else:
+    animation_interval = 150  # default
+    frame_skip = 1
+    num_animation_frames = 0
+    print(f"Animation interval: {animation_interval:.1f} ms (no frames to animate)")
+
 fig, ax = plt.subplots(figsize=(10, 10))
-# Set colorbar limits to show relevant temperature range
-# Focus on range from initial temp to oil bath temp + small margin
-# This allows us to see differences at interfaces clearly
-T_plot_min = T_init  # Start at 20°C (293K)
-T_plot_max = T_ext + 50.0  # Go slightly above oil bath (270°C = 543K, so up to ~593K)
 im = ax.imshow(frames[0], extent=[0,L_total*1000,0,L_total*1000], origin='lower', 
                cmap='inferno', vmin=T_plot_min, vmax=T_plot_max)
 plt.title("Temperature field evolution")
@@ -304,9 +401,7 @@ cbar = plt.colorbar(im, label='Temperature [K]', ax=ax)
 # Add temperature in Celsius on secondary axis
 cbar.ax.set_ylabel('Temperature [K]', rotation=270, labelpad=20)
 # Add tick marks for key temperatures
-ticks_k = np.array([293, 350, 400, 450, 500, 543, 593])  # Key temps in K
 cbar.set_ticks(ticks_k)
-tick_labels = [f'{T:.0f}K\n({T-273.15:.0f}°C)' for T in ticks_k]
 cbar.set_ticklabels(tick_labels)
 
 # Draw boundaries to show layers
@@ -327,11 +422,12 @@ ax.set_ylabel('y [mm]')
 ax.legend(loc='upper right')
 
 def animate(i):
-    im.set_data(frames[i])
-    ax.set_title(f"Temperature field at t = {i*dt*save_every:.1f} s")
+    frame_idx = min(i * frame_skip, len(frames) - 1)  # Ensure we don't exceed available frames
+    im.set_data(frames[frame_idx])
+    ax.set_title(f"Temperature field at t = {frame_idx*dt*save_every:.1f} s ({frame_idx*dt*save_every/60:.1f} min)")
     return [im]
 
-ani = animation.FuncAnimation(fig, animate, frames=len(frames), interval=150)
+ani = animation.FuncAnimation(fig, animate, frames=num_animation_frames, interval=int(animation_interval), repeat=True, blit=False)
 plt.show()
 
 # Plot temperature evolution
