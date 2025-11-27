@@ -10,22 +10,17 @@ from tqdm import tqdm
 
 # --- Experiment Description ---
 EXPERIMENT_DESCRIPTION = """
-Describe your experiment here: 
-- What are you testing?
-- What conditions are you varying?
-- What do you expect to see?
-
-This experiment is to test the functionality of experiment logging and saving.
+Simple submerged heater simulation. Oil CAN heat up over time, an the heater runs for a long time and will also heat the oil.
 """
 
 # --- New Physics Toggles ---
-OIL_IS_FINITE = False        # True = Oil heats up over time. False = Infinite constant temp source.
-OIL_PLACEMENT = "RIGHT"       # Options: "ALL", "LEFT", "RIGHT", "TOP", "BOTTOM"
+OIL_IS_FINITE = True        # True = Oil heats up over time. False = Infinite constant temp source.
+OIL_PLACEMENT = "ALL"       # Options: "ALL", "LEFT", "RIGHT", "TOP", "BOTTOM"
 
 # --- Snapshot Settings ---
 SAVE_SNAPSHOTS      = True           
 SNAPSHOT_INTERVAL_S = 300.0          # Save image every 5 mins
-SNAPSHOT_FOLDER     = "sim_snapshot_test" 
+SNAPSHOT_FOLDER     = "Test 1 - Submerged Heater" 
 
 # --- Geometry [m] ---
 space_length = 0.094 
@@ -39,13 +34,13 @@ L_heater_block = 0.030
 Q_input_watts  = 8.0       
 
 # --- Temperatures [K] ---
-T_oil_setpoint = 273.15 + 170.0   # 85°C
-T_ambient      = 293.15 + 85.0          # 20°C (Room temp for non-oil sides)
-T_initial      = 293.15          # 20°C (Starting temp of everything)
+T_oil_setpoint = 273.15 + 20.0   # 20°C
+T_ambient      = 293.15           # 20°C (Room temp for non-oil sides)
+T_initial      = 293.15          # 20°C (Starting temp of everything - always room temp)
 
 # --- Simulation Settings ---
 Resolution     = 140         
-Time_Total     = 100       
+Time_Total     = 3600*4       
 Animation_Speedup = 50.0    # Playback speed
 
 # --- Materials ---
