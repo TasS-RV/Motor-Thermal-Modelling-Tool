@@ -1,0 +1,63 @@
+======================================================================
+EXPERIMENT LOG
+======================================================================
+
+EXPERIMENT DESCRIPTION:
+----------------------------------------------------------------------
+Simple submerged heater simulation. Oil CAN heat up over time, an the heater runs for a long time and will also heat the oil.
+
+KEY PARAMETERS:
+----------------------------------------------------------------------
+
+--- GEOMETRY ---
+Space Length: 94.00 mm
+Air Inner (L_air_inner): 100.00 mm
+Insulation Thickness (t_insulation): 5.00 mm
+Oil Margin (t_oil_margin): 50.00 mm
+Depth (D_depth): 103.00 mm
+Heater Block Size (L_heater_block): 30.00 mm
+Grid Resolution: 140×140
+Grid Spacing (dx): 1.5000 mm
+Total Domain Size: 210.00 mm
+
+--- TEMPERATURES ---
+Oil Setpoint: 293.15 K (20.00°C)
+Ambient Temperature: 293.15 K (20.00°C)
+Initial Temperature: 293.15 K (20.00°C)
+
+--- OIL CONFIGURATION ---
+Oil Placement: ALL
+Oil Type: FINITE (Heats up over time)
+
+--- HEAT SOURCE ---
+Heater Power: 8.00 W
+Heater Volume: 92700.00 mm³
+Volumetric Heat Generation: 8.63e+04 W/m³
+
+--- MATERIAL PROPERTIES ---
+Insulation (Aerogel):
+  k = 0.0200 W/mK
+  ρ = 150.0 kg/m³
+  cp = 1000.0 J/kgK
+Internal Air:
+  k = 0.0260 W/mK
+  ρ = 1.225 kg/m³
+  cp = 1005.0 J/kgK
+Oil:
+  k = 0.1500 W/mK
+  ρ = 800.0 kg/m³
+  cp = 2000.0 J/kgK
+Heater (Aluminum):
+  k = 160.0 W/mK
+  ρ = 2700.0 kg/m³
+  cp = 900.0 J/kgK
+
+--- SIMULATION SETTINGS ---
+Total Simulation Time: 14400.0 s (240.00 min, 4.000 hours)
+Time Step (dt): 0.006834 s
+Number of Steps: 2,106,995
+Snapshot Interval: 600.0 s (10.00 min)
+Animation Speedup: 50.0x
+
+======================================================================
+Log file generated automatically by simulation.

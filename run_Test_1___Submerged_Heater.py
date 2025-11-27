@@ -10,38 +10,38 @@ from tqdm import tqdm
 
 # --- Experiment Description ---
 EXPERIMENT_DESCRIPTION = """
-Colder to actual conditions: 85 C ambient, 8 W heater, 85 C oil from just motor side. Assuming infinite oil thermal mass, but a gentler experiment case.
+Simple submerged heater simulation. Oil CAN heat up over time, an the heater runs for a long time and will also heat the oil.
 """
 
 # --- New Physics Toggles ---
-OIL_IS_FINITE = False        # True = Oil heats up over time. False = Infinite constant temp source.
-OIL_PLACEMENT = "RIGHT"       # Options: "ALL", "LEFT", "RIGHT", "TOP", "BOTTOM"
+OIL_IS_FINITE = True
+OIL_PLACEMENT = "ALL"
 
 # --- Snapshot Settings ---
 SAVE_SNAPSHOTS      = True           
-SNAPSHOT_INTERVAL_S = 300.0          # Save image every 5 minutes
-SNAPSHOT_FOLDER     = "Test 5 - true milder condition" 
+SNAPSHOT_INTERVAL_S = 600.0
+SNAPSHOT_FOLDER = "Test 1 - Submerged Heater"
 
 # --- Geometry [m] ---
-space_length = 0.094 
-L_air_inner    = 0.100       
-t_insulation   = 0.005       
-t_oil_margin   = 0.050       
-D_depth        = space_length - (0.015 - 0.016 - 0.008) 
+space_length = 0.094
+L_air_inner = 0.1
+t_insulation = 0.005
+t_oil_margin = 0.05
+D_depth = 0.103  # Set from backup log
 
 # --- Heater Source ---
-L_heater_block = 0.030      
-Q_input_watts  = 8.0       
+L_heater_block = 0.03
+Q_input_watts = 8.0
 
 # --- Temperatures [K] ---
-T_oil_setpoint = 273.15 + 85.0   # 170°C
-T_ambient      = 273.15 + 85.0          # 20°C (Room temp for non-oil sides)
-T_initial      = 293.15          # 20°C (Starting temp of everything - always room temp)
+T_oil_setpoint = 293.15  # From backup log
+T_ambient = 293.15  # From backup log
+T_initial = 293.15
 
 # --- Simulation Settings ---
-Resolution     = 140         
-Time_Total     = 3600*8       
-Animation_Speedup = 50.0    # Playback speed
+Resolution = 140
+Time_Total = 14400.0  # From backup log
+Animation_Speedup = 50.0
 
 # --- Materials ---
 # Note: Added 'ambient' for the empty air space in single-sided mode
