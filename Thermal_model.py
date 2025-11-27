@@ -18,7 +18,7 @@ L_air = 0.086          # [m] air cavity width
 t_ins = 0.004          # [m] insulation thickness (variable)
 L_outside = 0.02       # [m] outside world visualization (20 mm)
 L_total = L_air + 2*t_ins + 2*L_outside  # total domain width
-Nx, Ny = 120, 120      # grid resolution (increased to show outside)
+Nx, Ny = 400, 400      # grid resolution (increased to show outside)
 
 # Thermal properties
 # options: 'aerogel', 'ptfe', or 'custom' - this does NOT consider another further layer. It also assumes worst case of the metal interface being 100% conductive, and neglegible thickness.
@@ -44,23 +44,23 @@ rho_air = 1.225         # kg/m3
 cp_air = 1005           # J/kgK
 
 # Heat source - distributed over small area at center
-enable_internal_heat_source = False  # Set to False to disable internal heat source and validate boundary heating alone
+enable_internal_heat_source = True  # Set to False to disable internal heat source and validate boundary heating alone
 Q_total = 8.0           # [W] total heat (distributed over small region) - set to 0 if enable_internal_heat_source is False
 
 # Boundary temperatures - all temperatures are set in kelvin
 T_ext = 273.15 + 170.0  # [K] oil bath at 170°C
 T_init = 293.0          # [K] starting temp (20°C)
-T_max_source = 500.0   # [K] maximum temperature cap for heat source region
+T_max_source = 273.15 + 170.0   # [K] maximum temperature cap for heat source region
 
 # Time stepping
 dt = 0.2               # [s] (will be adjusted if needed for stability)
-t_max = 60          # [s] - length of time to run the experiment. This will need to be extended ot the running time of the motor
-save_period = 4.0      # [s] time period between saved frames (save_every will be automatically calculated based on actual dt)
+t_max = 1200          # [s] - length of time to run the experiment. This will need to be extended ot the running time of the motor
+save_period = 10.0      # [s] time period between saved frames (save_every will be automatically calculated based on actual dt)
 
 # Image saving
-num_snapshots = 5      # number of snapshot images to save (evenly distributed over total time)
-save_snapshots = False   # set to False to disable snapshot saving
-snapshot_folder = "Fast exp, local heat source, coarse time step"  # folder name to save snapshots
+num_snapshots = 20      # number of snapshot images to save (evenly distributed over total time)
+save_snapshots = True   # set to False to disable snapshot saving
+snapshot_folder = "Fast exp 2, local heat source - 3x3 cells"  # folder name to save snapshots
 
 # Animation speed
 playback_speed_ratio = 60.0  # e.g., 60 means 1 hour of simulation plays in 60 seconds (60x speed)
@@ -154,7 +154,7 @@ vol_per_cell = dx*dx*depth  # volume per cell [m³]
 
 # Create a small heat source region (e.g., 3x3 or 5x5 cells around center)
 # This prevents unrealistic temperature spikes from point sources
-source_size_cells = 40  # Use 40x40 cell region for heat source 
+source_size_cells = 4  # Use 40x40 cell region for heat source 
 """ 
 Note that, although the heat source around the cell would suggest the electronics components around it are being cooked, we are really interested in the average temperature of the air inside. 
 Ideally the 8 W heat source IS a singularity, but for it to be a heat source, it DOES still need a temperature, for the physics equations to be resolved ocrrectly.
