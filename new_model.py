@@ -53,7 +53,7 @@ Animation_Speedup = 50.0    # Playback speed
 mat_ins     = {'k': 0.02,   'rho': 150.0,  'cp': 1000.0} # Aerogel
 mat_air_int = {'k': 0.026,  'rho': 1.225,  'cp': 1005.0} # Internal Air
 mat_air_amb = {'k': 0.026,  'rho': 1.225,  'cp': 1005.0} # External Ambient Air
-mat_heat    = {'k': 160.0,  'rho': 2700.0, 'cp': 900.0}  # Aluminum Heater
+mat_heat    = {'k': 160.0,  'rho': 2700.0, 'cp': 900.0}  # Aluminum Heater - while somewhat unrealistic, a small aluminium heatsink WILL be required for the heatsink. This somewhat encapsulates a bit of the volume of the faraday cage as well
 mat_oil     = {'k': 0.15,   'rho': 800.0,  'cp': 2000.0} # Oil
 
 # ==========================================
@@ -343,18 +343,26 @@ anim_frames.append(T.copy())
 print("\nSimulation Complete.")
 
 # ==========================================
-# 📈 1. GRAPH
+# 📈 1. TEMPERATURE EVOLUTION GRAPH (Save as PNG)
 # ==========================================
-plt.figure(figsize=(10, 5))
-plt.plot(history_time, history_heater, 'r-', label='Heater')
-plt.plot(history_time, history_oil, 'b--', label='Oil Avg')
-plt.axhline(T_oil_setpoint, color='green', linestyle=':', label='Oil Setpoint')
-plt.title(f"Temp Evolution (Finite Oil: {OIL_IS_FINITE})")
-plt.ylabel("Temp [K]")
-plt.xlabel("Time [s]")
-plt.legend()
-plt.grid(True, alpha=0.3)
-plt.show()
+if len(history_time) > 0:
+    fig_temp = plt.figure(figsize=(10, 5))
+    plt.plot(history_time, history_heater, 'r-', label='Heater', linewidth=2)
+    plt.plot(history_time, history_oil, 'b--', label='Oil Avg', linewidth=2)
+    plt.axhline(T_oil_setpoint, color='green', linestyle=':', label='Oil Setpoint', linewidth=1.5)
+    plt.title(f"Temperature Evolution (Finite Oil: {OIL_IS_FINITE})", fontsize=14, fontweight='bold')
+    plt.ylabel("Temperature [K]", fontsize=12)
+    plt.xlabel("Time [s]", fontsize=12)
+    plt.legend(fontsize=11)
+    plt.grid(True, alpha=0.3)
+    
+    # Save PNG to snapshot folder
+    if SAVE_SNAPSHOTS:
+        temp_plot_filename = os.path.join(SNAPSHOT_FOLDER, "temperature_evolution.png")
+        plt.savefig(temp_plot_filename, dpi=150, bbox_inches='tight')
+        print(f"Temperature evolution plot saved to: {temp_plot_filename}")
+    
+    plt.show()
 
 # ==========================================
 # 🎥 2. ANIMATION
