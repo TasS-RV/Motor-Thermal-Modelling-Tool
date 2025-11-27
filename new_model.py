@@ -1,213 +1,207 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-import matplotlib.patches as patches
-import tqdm 
+import os
+from tqdm import tqdm # Imported directly as requested
+
 # ==========================================
 # 🎛️ CONTROL PANEL
 # ==========================================
 
+# --- Snapshot Settings ---
+SAVE_SNAPSHOTS      = True           # Set to False to disable saving to disk
+SNAPSHOT_INTERVAL_S = 60.0          # Save an image every 120 simulation seconds
+SNAPSHOT_FOLDER     = "sim_snapshots_v3" # Folder name
+
 # --- Geometry [m] ---
-# Inner air cavity size (94mm)
-L_air_inner   = 0.094       
-# Insulation thickness (4mm)
-t_insulation  = 0.004       
-# Oil Bath Margin (Increased to 50mm to look like a bath)
-t_oil_margin  = 0.050       
-# Depth of the unit (80mm) - used for Volume calculation
-D_depth       = 0.080       
+L_air_inner    = 0.094       
+t_insulation   = 0.004       
+t_oil_margin   = 0.050       
+D_depth        = 0.080       
 
 # --- Heater Source ---
-# We use a 30x30mm block to distribute the 8W (prevents singularity)
 L_heater_block = 0.030      
 Q_input_watts  = 8.0        
 
 # --- Temperatures [K] ---
-T_oil_bath    = 273.15 + 170.0  # 170°C (Fixed Boundary)
-T_initial     = 293.15          # 20°C (Start Temp)
+T_oil_bath     = 273.15 + 170.0  # 170°C
+T_initial      = 293.15          # 20°C
 
 # --- Simulation Settings ---
-Resolution    = 140         # Grid resolution (140x140)
-Time_Total    = 600        # Total simulation duration in seconds
-Animation_Speedup = 50.0    # Playback speed (e.g., 50x real time)
+Resolution     = 140         # Grid resolution
+Time_Total     = 180      # Total simulation time in seconds (e.g. 30 mins)
+Animation_Speedup = 50.0     # For the playback window speed
 
 # --- Materials ---
-# Aerogel-like insulation
-mat_ins  = {'k': 0.02,  'rho': 150.0,  'cp': 1000.0}
-# Air
-mat_air  = {'k': 0.026, 'rho': 1.225,  'cp': 1005.0}
-# Heater Core (Aluminum/PCB mix thermal mass)
-mat_heat = {'k': 160.0, 'rho': 2700.0, 'cp': 900.0}
-# Oil (Properties don't impact math much due to fixed temp, but good for completeness)
-mat_oil  = {'k': 0.15,  'rho': 800.0,  'cp': 2000.0}
+mat_ins  = {'k': 0.02,  'rho': 150.0,  'cp': 1000.0} # Aerogel
+mat_air  = {'k': 0.026, 'rho': 1.225,  'cp': 1005.0} # Air
+mat_heat = {'k': 160.0, 'rho': 2700.0, 'cp': 900.0}  # Heater Core
+mat_oil  = {'k': 0.15,  'rho': 800.0,  'cp': 2000.0} # Oil
 
 # ==========================================
-# ⚙️ SETUP & PHYSICS
+# ⚙️ SETUP
 # ==========================================
 
-# 1. Geometry Setup
-# Total Width = Oil + Ins + Air + Ins + Oil
+# 1. Create Snapshot Folder
+if SAVE_SNAPSHOTS:
+    if not os.path.exists(SNAPSHOT_FOLDER):
+        os.makedirs(SNAPSHOT_FOLDER)
+        print(f"Created folder: {SNAPSHOT_FOLDER}")
+
+# 2. Geometry Setup
 L_total = L_air_inner + 2*t_insulation + 2*t_oil_margin
 dx = L_total / Resolution
 dy = dx
-
-# Create Coordinate Grid
 x = np.linspace(0, L_total, Resolution)
 y = np.linspace(0, L_total, Resolution)
 X, Y = np.meshgrid(x, y)
 
-# 2. Define Regions (Masks)
+# 3. Define Regions (Masks)
 center = L_total / 2
 dist_x = np.abs(X - center)
 dist_y = np.abs(Y - center)
 
-# Heater Mask (Center)
-mask_heater = (dist_x < L_heater_block/2) & (dist_y < L_heater_block/2)
+mask_heater   = (dist_x < L_heater_block/2) & (dist_y < L_heater_block/2)
+limit_air     = L_air_inner / 2
+mask_air_zone = (dist_x < limit_air) & (dist_y < limit_air)
+mask_air      = mask_air_zone & (~mask_heater)
+limit_ins     = limit_air + t_insulation
+mask_ins_zone = (dist_x < limit_ins) & (dist_y < limit_ins)
+mask_ins      = mask_ins_zone & (~mask_air_zone)
+mask_oil      = ~mask_ins_zone
 
-# Air Mask (Inner Box - Heater)
-lim_air = L_air_inner / 2
-mask_air_zone = (dist_x < lim_air) & (dist_y < lim_air)
-mask_air = mask_air_zone & (~mask_heater)
+# 4. Map Material Properties
+K   = np.zeros_like(X); Rho = np.zeros_like(X); Cp  = np.zeros_like(X)
 
-# Insulation Mask (Outer Box - Air Zone)
-lim_ins = lim_air + t_insulation
-mask_ins_zone = (dist_x < lim_ins) & (dist_y < lim_ins)
-mask_ins = mask_ins_zone & (~mask_air_zone)
-
-# Oil Mask (Everything outside insulation)
-mask_oil = ~mask_ins_zone
-
-# 3. Map Material Properties to Grid
-K   = np.zeros_like(X)
-Rho = np.zeros_like(X)
-Cp  = np.zeros_like(X)
-
-# Helper function to apply properties
 def apply_mat(mask, mat):
-    K[mask]   = mat['k']
-    Rho[mask] = mat['rho']
-    Cp[mask]  = mat['cp']
+    K[mask] = mat['k']; Rho[mask] = mat['rho']; Cp[mask] = mat['cp']
 
-apply_mat(mask_oil, mat_oil)     # Background
-apply_mat(mask_ins, mat_ins)     # Insulation
-apply_mat(mask_air, mat_air)     # Air
-apply_mat(mask_heater, mat_heat) # Heater
+apply_mat(mask_oil, mat_oil)
+apply_mat(mask_ins, mat_ins)
+apply_mat(mask_air, mat_air)
+apply_mat(mask_heater, mat_heat)
 
-# 4. Heat Source Calculation
-# Calculate volume of the heater block in m^3
+# 5. Physics Prep
 vol_heater = np.sum(mask_heater) * dx * dy * D_depth
-Q_volumetric = Q_input_watts / vol_heater  # Watts / m^3
+Q_volumetric = Q_input_watts / vol_heater
 
-# 5. Stability Calculation
 Alpha = K / (Rho * Cp)
-alpha_max = np.max(Alpha[~mask_oil]) # Exclude oil boundary from stability check
-dt = (0.8 * dx**2) / (4 * alpha_max) # 0.8 safety factor
+alpha_max = np.max(Alpha[~mask_oil]) 
+dt = (0.8 * dx**2) / (4 * alpha_max)
 
-print(f"--- SIMULATION READY ---")
-print(f"Total Width: {L_total*1000:.1f} mm")
-print(f"Oil Margin:  {t_oil_margin*1000:.1f} mm (per side)")
-print(f"Heater Vol:  {vol_heater*1e6:.1f} cm3")
-print(f"Time Step:   {dt:.5f} s")
+print(f"Time Step: {dt:.5f} s")
+print(f"Simulation Duration: {Time_Total} s")
+print(f"Saving Snapshots every {SNAPSHOT_INTERVAL_S} s")
 
 # ==========================================
 # 🚀 RUN SIMULATION
 # ==========================================
 
-# Initial Condition
 T = np.ones_like(X) * T_initial
-T[mask_oil] = T_oil_bath # Oil starts and stays at 170C
+T[mask_oil] = T_oil_bath
 
 n_steps = int(Time_Total / dt)
+steps_per_snapshot = int(SNAPSHOT_INTERVAL_S / dt)
 
-# Animation Settings
-target_fps = 30
-# We want the animation to last: Time_Total / Speedup
-anim_duration = Time_Total / Animation_Speedup
-total_frames_needed = int(anim_duration * target_fps)
-save_every_n_steps = int(n_steps / total_frames_needed)
-if save_every_n_steps < 1: save_every_n_steps = 1
+# Data Logging
+history_time = []
+history_heater = []
+history_air = []
 
-frames = [] # To store snapshots
+# Animation Frame Storage
+anim_frames = []
+anim_save_interval = int(n_steps / (Time_Total/Animation_Speedup * 30)) 
+if anim_save_interval < 1: anim_save_interval = 1
 
-print(f"Simulating {Time_Total}s... (Saving {total_frames_needed} frames)")
-
-iterator = range(n_steps)
-if HAS_TQDM:
-    iterator = tqdm(range(n_steps), unit="step")
+# Setup Progress Bar directly
+iterator = tqdm(range(n_steps), 
+                bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [Time: {postfix}]',
+                postfix="0.0s | T_heat: 20C")
 
 for n in iterator:
-    # 1. Enforce Boundary (Infinite Oil Bath)
+    # 1. Physics
     T[mask_oil] = T_oil_bath
-    
-    # 2. Compute Laplacian (Finite Difference)
-    d2T = (
-        np.roll(T, 1, axis=0) + np.roll(T, -1, axis=0) +
-        np.roll(T, 1, axis=1) + np.roll(T, -1, axis=1) -
-        4 * T
-    ) / dx**2
-    
-    # 3. Add Heat Source
+    d2T = (np.roll(T, 1, axis=0) + np.roll(T, -1, axis=0) +
+           np.roll(T, 1, axis=1) + np.roll(T, -1, axis=1) - 4 * T) / dx**2
     Q_term = np.zeros_like(T)
     Q_term[mask_heater] = Q_volumetric
-    
-    # 4. Update Temperature Field
     T += dt * (Alpha * d2T + Q_term / (Rho * Cp))
     
-    # 5. Save Frame
-    if n % save_every_n_steps == 0:
-        frames.append(T.copy())
+    # 2. Data Logging (Every 100 steps to keep arrays manageable)
+    if n % 100 == 0:
+        current_time = n * dt
+        t_h_mean = np.mean(T[mask_heater])
+        t_a_mean = np.mean(T[mask_air])
+        
+        history_time.append(current_time)
+        history_heater.append(t_h_mean)
+        history_air.append(t_a_mean)
+        
+        # Update Progress Bar Text (every 500 steps to avoid flicker)
+        if n % 500 == 0:
+            iterator.set_postfix_str(f"{current_time:.1f}s | T_heat: {t_h_mean-273.15:.1f}C")
 
-# Ensure last frame is caught
-frames.append(T.copy())
+    # 3. Save Snapshot to Disk
+    if SAVE_SNAPSHOTS and (n % steps_per_snapshot == 0):
+        # Only check this condition so we don't slow down the main loop constantly
+        sim_time = n * dt
+        plt.ioff()
+        fig_snap, ax_snap = plt.subplots(figsize=(8, 8))
+        im = ax_snap.imshow(T, cmap='inferno', origin='lower', 
+                           extent=[0, L_total*1000, 0, L_total*1000],
+                           vmin=T_initial, vmax=T_oil_bath+10)
+        ax_snap.contour(X*1000, Y*1000, mask_ins, levels=[0.5], colors='cyan', linewidths=0.5)
+        ax_snap.set_title(f"Time: {sim_time:.1f} s | Heater: {np.mean(T[mask_heater])-273.15:.1f}°C")
+        plt.colorbar(im, ax=ax_snap, label='Temp [K]')
+        filename = f"{SNAPSHOT_FOLDER}/step_{n:06d}_time_{int(sim_time)}s.png"
+        plt.savefig(filename, dpi=80)
+        plt.close(fig_snap)
+        
+    # 4. Store frame for Animation
+    if n % anim_save_interval == 0:
+        anim_frames.append(T.copy())
+
+# Capture final state
+anim_frames.append(T.copy())
+history_time.append(n*dt)
+history_heater.append(np.mean(T[mask_heater]))
+history_air.append(np.mean(T[mask_air]))
+
+print(f"\nSimulation Complete.")
 
 # ==========================================
-# 🎥 ANIMATION GENERATION
+# 📈 FINAL ANALYSIS GRAPHS
 # ==========================================
-
-print("Generating Animation...")
-
-fig, ax = plt.subplots(figsize=(8, 8))
-
-# Setup the plot extent to be in mm
-extent_mm = [0, L_total*1000, 0, L_total*1000]
-
-# Initial Plot
-# We use vmin/vmax to keep the color scale fixed throughout the animation
-im = ax.imshow(frames[0], cmap='inferno', origin='lower', extent=extent_mm,
-               vmin=T_initial, vmax=T_oil_bath + 20)
-
-# Add visual overlays for the box structure
-# Convert mask boundaries to contours for clean lines
-ax.contour(X*1000, Y*1000, mask_ins, levels=[0.5], colors='cyan', linewidths=1, linestyles='solid')
-ax.contour(X*1000, Y*1000, mask_heater, levels=[0.5], colors='white', linewidths=1, linestyles='dashed')
-
-# Formatting
-cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-cbar.set_label('Temperature [K]')
-ax.set_title("Initializing...")
-ax.set_xlabel("Width [mm]")
-ax.set_ylabel("Height [mm]")
-
-# Update function for animation
-def update(frame_idx):
-    # Update image data
-    im.set_data(frames[frame_idx])
-    
-    # Calculate simulation time for title
-    sim_time = frame_idx * save_every_n_steps * dt
-    
-    # Get current center temp
-    center_temp = np.mean(frames[frame_idx][mask_heater])
-    air_temp = np.mean(frames[frame_idx][mask_air])
-    
-    ax.set_title(f"Time: {sim_time:.1f}s | Heater: {center_temp:.0f}K | Air: {air_temp:.0f}K")
-    return [im]
-
-# Create Animation
-ani = FuncAnimation(fig, update, frames=len(frames), interval=1000/target_fps, blit=False)
-
-print("Displaying animation window...")
+plt.figure(figsize=(10, 6))
+plt.plot(history_time, history_heater, label='Heater Block', color='red', linewidth=2)
+plt.plot(history_time, history_air, label='Avg Air Temp', color='orange', linewidth=2)
+plt.axhline(T_oil_bath, color='blue', linestyle='--', label='Oil Boundary (170°C)')
+plt.xlabel('Simulation Time [s]')
+plt.ylabel('Temperature [K]')
+plt.title(f'Temperature Evolution (Total Time: {Time_Total}s)')
+plt.legend()
+plt.grid(True, alpha=0.3)
 plt.show()
 
-# Optional: Save logic (commented out)
-# ani.save('simulation_bath.gif', writer='pillow', fps=target_fps)
+# ==========================================
+# 🎥 PLAYBACK ANIMATION
+# ==========================================
+print("Launching Animation Window...")
+fig, ax = plt.subplots(figsize=(8, 8))
+extent_mm = [0, L_total*1000, 0, L_total*1000]
+im = ax.imshow(anim_frames[0], cmap='inferno', origin='lower', extent=extent_mm,
+               vmin=T_initial, vmax=T_oil_bath + 20)
+
+ax.contour(X*1000, Y*1000, mask_ins, levels=[0.5], colors='cyan', linewidths=1)
+ax.set_xlabel("mm"); ax.set_ylabel("mm")
+title = ax.set_title("Replay")
+
+def update(i):
+    im.set_data(anim_frames[i])
+    # Calculate approx time for frame
+    t_approx = i * anim_save_interval * dt
+    title.set_text(f"Playback: {t_approx:.1f}s")
+    return [im, title]
+
+ani = FuncAnimation(fig, update, frames=len(anim_frames), interval=30, blit=False)
+plt.show()
