@@ -10,17 +10,17 @@ from tqdm import tqdm
 
 # --- Experiment Description ---
 EXPERIMENT_DESCRIPTION = """
-Simple submerged heater simulation. Oil CAN heat up over time, an the heater runs for a long time and will also heat the oil.
+Colder to actual conditions: 85 C ambient, 8 W heater, 85 C oil from just motor side. Assuming infinite oil thermal mass, but a gentler experiment case.
 """
 
 # --- New Physics Toggles ---
-OIL_IS_FINITE = True        # True = Oil heats up over time. False = Infinite constant temp source.
-OIL_PLACEMENT = "ALL"       # Options: "ALL", "LEFT", "RIGHT", "TOP", "BOTTOM"
+OIL_IS_FINITE = False        # True = Oil heats up over time. False = Infinite constant temp source.
+OIL_PLACEMENT = "RIGHT"       # Options: "ALL", "LEFT", "RIGHT", "TOP", "BOTTOM"
 
 # --- Snapshot Settings ---
 SAVE_SNAPSHOTS      = True           
-SNAPSHOT_INTERVAL_S = 300.0          # Save image every 5 mins
-SNAPSHOT_FOLDER     = "Test 1 - Submerged Heater" 
+SNAPSHOT_INTERVAL_S = 3.0          # Save image every 5 minutes
+SNAPSHOT_FOLDER     = "Test - true milder condition" 
 
 # --- Geometry [m] ---
 space_length = 0.094 
@@ -34,13 +34,13 @@ L_heater_block = 0.030
 Q_input_watts  = 8.0       
 
 # --- Temperatures [K] ---
-T_oil_setpoint = 273.15 + 20.0   # 20°C
-T_ambient      = 293.15           # 20°C (Room temp for non-oil sides)
+T_oil_setpoint = 273.15 + 85.0   # 170°C
+T_ambient      = 273.15 + 85.0          # 20°C (Room temp for non-oil sides)
 T_initial      = 293.15          # 20°C (Starting temp of everything - always room temp)
 
 # --- Simulation Settings ---
 Resolution     = 140         
-Time_Total     = 3600*4       
+Time_Total     = 36       
 Animation_Speedup = 50.0    # Playback speed
 
 # --- Materials ---
@@ -315,6 +315,10 @@ for n in iterator:
         fig_s, ax_s = plt.subplots(figsize=(6,6))
         im_s = ax_s.imshow(T, cmap='inferno', origin='lower', extent=[0, L_total*1000, 0, L_total*1000], vmin=T_initial, vmax=T_oil_setpoint+50)
         
+        # Add colorbar
+        cbar_s = plt.colorbar(im_s, ax=ax_s, fraction=0.046, pad=0.04)
+        cbar_s.set_label('Temperature [K]', fontsize=10)
+        
         # Draw Oil Boundary
         if np.sum(mask_oil) > 0:
             ax_s.contour(X*1000, Y*1000, mask_oil, levels=[0.5], colors='blue', linewidths=1.0)
@@ -323,10 +327,12 @@ for n in iterator:
         
         current_time = n * dt
         ax_s.set_title(f"T={current_time:.0f}s | Mode: {OIL_PLACEMENT}")
+        ax_s.set_xlabel("x [mm]")
+        ax_s.set_ylabel("y [mm]")
         
         # Save with time-based filename instead of step number
         time_str = f"t{current_time:07.0f}s"  # Format: t0000120s for 120 seconds
-        plt.savefig(f"{SNAPSHOT_FOLDER}/{time_str}.png", dpi=80)
+        plt.savefig(f"{SNAPSHOT_FOLDER}/{time_str}.png", dpi=80, bbox_inches='tight')
         plt.close(fig_s)
 
     # --- 5. Animation Storage ---

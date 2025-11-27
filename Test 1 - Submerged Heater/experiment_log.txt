@@ -4,12 +4,7 @@ EXPERIMENT LOG
 
 EXPERIMENT DESCRIPTION:
 ----------------------------------------------------------------------
-Describe your experiment here: 
-- What are you testing?
-- What conditions are you varying?
-- What do you expect to see?
-
-This experiment is to test the functionality of experiment logging and saving.
+Simple submerged heater simulation. Oil CAN heat up over time, an the heater runs for a long time and will also heat the oil.
 
 KEY PARAMETERS:
 ----------------------------------------------------------------------
@@ -26,13 +21,13 @@ Grid Spacing (dx): 1.5000 mm
 Total Domain Size: 210.00 mm
 
 --- TEMPERATURES ---
-Oil Setpoint: 443.15 K (170.00°C)
-Ambient Temperature: 378.15 K (105.00°C)
+Oil Setpoint: 293.15 K (20.00°C)
+Ambient Temperature: 293.15 K (20.00°C)
 Initial Temperature: 293.15 K (20.00°C)
 
 --- OIL CONFIGURATION ---
-Oil Placement: RIGHT
-Oil Type: INFINITE (Constant temperature)
+Oil Placement: ALL
+Oil Type: FINITE (Heats up over time)
 
 --- HEAT SOURCE ---
 Heater Power: 8.00 W
@@ -58,10 +53,10 @@ Heater (Aluminum):
   cp = 900.0 J/kgK
 
 --- SIMULATION SETTINGS ---
-Total Simulation Time: 100.0 s (1.67 min, 0.028 hours)
+Total Simulation Time: 14400.0 s (240.00 min, 4.000 hours)
 Time Step (dt): 0.006834 s
-Number of Steps: 14,631
-Snapshot Interval: 300.0 s (5.00 min)
+Number of Steps: 2,106,995
+Snapshot Interval: 600.0 s (10.00 min)
 Animation Speedup: 50.0x
 
 ======================================================================
