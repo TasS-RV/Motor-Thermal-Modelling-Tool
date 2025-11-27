@@ -32,9 +32,30 @@ Resolution     = 140         # Grid resolution
 Time_Total     = 180      # Total simulation time in seconds (e.g. 30 mins)
 Animation_Speedup = 50.0     # For the playback window speed
 
+ins_type = 'aerogel'   
+
+# Select insulation material properties
+if ins_type.lower() == 'aerogel':
+    k_ins = 0.02        # W/mK - conductivity from: https://www.engineeringtoolbox.com/thermal-conductivity-d_429.html
+    rho_ins = 150       # kg/m3 - https://www.mdpi.com/2073-4360/14/7/1456?. Various ranges suggest 30-350 kg/m^3. We are using a rough intermediate value. Alternative from actual supplier: https://www.keepinsulation.com/aerogel/aerogel-felt/silica-aerogel-thermal-insulation-roll.html
+    cp_ins = 1000       # J/kgK - for aerogel this is sensible, perhaps slightly different. Given it is very low density, wiht high proportion of air (>95%).
+elif ins_type.lower() == 'ptfe':
+    k_ins = 0.25  # See below!
+    rho_ins = 2200 # Density and Thermal conducitivity from: https://en.wikipedia.org/wiki/Polytetrafluoroethylene
+    cp_ins = 1010 # Based on the Specific heat at 23C from https://adtech.co.uk/application/files/8516/0500/0920/Adtech_PTFE_General_Properties_2020.pdf
+else:
+    k_ins = 0.1
+    rho_ins = 500
+    cp_ins = 1000
+
+# Air properties
+k_air = 0.0262          # W/mK
+rho_air = 1.225         # kg/m3
+cp_air = 1005           # J/kgK
+
 # --- Materials ---
-mat_ins  = {'k': 0.02,  'rho': 150.0,  'cp': 1000.0} # Aerogel
-mat_air  = {'k': 0.026, 'rho': 1.225,  'cp': 1005.0} # Air
+mat_ins  = {'k': k_ins,  'rho': rho_ins,  'cp': cp_ins} # Parameters ti be set based on the selected insulator
+mat_air  = {'k': k_air, 'rho': rho_air,  'cp': cp_air} # Air
 mat_heat = {'k': 160.0, 'rho': 2700.0, 'cp': 900.0}  # Heater Core
 mat_oil  = {'k': 0.15,  'rho': 800.0,  'cp': 2000.0} # Oil
 
