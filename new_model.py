@@ -10,8 +10,8 @@ from tqdm import tqdm # Imported directly as requested
 
 # --- Snapshot Settings ---
 SAVE_SNAPSHOTS      = True           # Set to False to disable saving to disk
-SNAPSHOT_INTERVAL_S = 60.0          # Save an image every 120 simulation seconds
-SNAPSHOT_FOLDER     = "sim_snapshots_v3" # Folder name
+SNAPSHOT_INTERVAL_S = 100.0          # Save an image every 120 simulation seconds
+SNAPSHOT_FOLDER     = "sim_snapshots - cold oil, hot source" # Folder name
 
 # --- Geometry [m] ---
 space_length = 0.094 # [m] - 94 mm specified based on the RFQ. Using larger motor frame size.
@@ -21,19 +21,18 @@ t_insulation   = 0.005
 t_oil_margin   = 0.050       
 D_depth        = space_length - (0.015 - 2*0.008 - 2*0.004) # [m] depth in z-direction: stack length + 2*winding_overhang + 2*insulation_thickness + end_frame_thickness
        
-
 # --- Heater Source ---
 L_heater_block = 0.030      
-Q_input_watts  = 8.0        
+Q_input_watts  = 200.0        
 
 # --- Temperatures [K] ---
-T_oil_bath     = 273.15 + 170.0  # 170°C
-T_initial      = 293.15          # 20°C
+T_oil_bath     = 273.15 + 85.0 #273.15 + 170.0  # 170°C
+T_initial      = 293.15          # 20°C - this is the internal air temperature
 
 # --- Simulation Settings ---
-Resolution     = 140         # Grid resolution
-Time_Total     = 180      # Total simulation time in seconds (e.g. 30 mins)
-Animation_Speedup = 50.0     # For the playback window speed
+Resolution     = 140         # Grid resolution - higher is not necessarily better as it can cause strangely high power densitites for heating
+Time_Total     = 7200      # Total simulation time in seconds (e.g. 30 mins)
+Animation_Speedup = 500.0     # For the playback window speed
 
 ins_type = 'aerogel'   
 
@@ -62,9 +61,6 @@ mat_air  = {'k': k_air, 'rho': rho_air,  'cp': cp_air} # Air
 mat_heat = {'k': 160.0, 'rho': 2700.0, 'cp': 900.0}  # Heater Core
 mat_oil  = {'k': 0.15,  'rho': 800.0,  'cp': 2000.0} # Oil
 
-# ==========================================
-# ⚙️ SETUP
-# ==========================================
 # ==========================================
 # ⚙️ SETUP
 # ==========================================
