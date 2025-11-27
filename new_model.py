@@ -30,7 +30,7 @@ T_initial      = 293.15          # 20°C
 # --- Simulation Settings ---
 Resolution     = 140         # Grid resolution
 Time_Total     = 180      # Total simulation time in seconds (e.g. 30 mins)
-Animation_Speedup = 50.0     # For the playback window speed
+Animation_Speedup = 500.0     # For the playback window speed
 
 ins_type = 'aerogel'   
 
@@ -63,13 +63,11 @@ mat_oil  = {'k': 0.15,  'rho': 800.0,  'cp': 2000.0} # Oil
 # ⚙️ SETUP
 # ==========================================
 
-# 1. Create Snapshot Folder
-if SAVE_SNAPSHOTS:
-    if not os.path.exists(SNAPSHOT_FOLDER):
-        os.makedirs(SNAPSHOT_FOLDER)
-        print(f"Created folder: {SNAPSHOT_FOLDER}")
+# 1. Folders
+if SAVE_SNAPSHOTS and not os.path.exists(SNAPSHOT_FOLDER):
+    os.makedirs(SNAPSHOT_FOLDER)
 
-# 2. Geometry Setup
+# 2. Grid
 L_total = L_air_inner + 2*t_insulation + 2*t_oil_margin
 dx = L_total / Resolution
 dy = dx
@@ -77,7 +75,7 @@ x = np.linspace(0, L_total, Resolution)
 y = np.linspace(0, L_total, Resolution)
 X, Y = np.meshgrid(x, y)
 
-# 3. Define Regions (Masks)
+# 3. Masks
 center = L_total / 2
 dist_x = np.abs(X - center)
 dist_y = np.abs(Y - center)
@@ -91,7 +89,7 @@ mask_ins_zone = (dist_x < limit_ins) & (dist_y < limit_ins)
 mask_ins      = mask_ins_zone & (~mask_air_zone)
 mask_oil      = ~mask_ins_zone
 
-# 4. Map Material Properties
+# 4. Materials
 K   = np.zeros_like(X); Rho = np.zeros_like(X); Cp  = np.zeros_like(X)
 
 def apply_mat(mask, mat):
@@ -102,7 +100,7 @@ apply_mat(mask_ins, mat_ins)
 apply_mat(mask_air, mat_air)
 apply_mat(mask_heater, mat_heat)
 
-# 5. Physics Prep
+# 5. Physics Constants
 vol_heater = np.sum(mask_heater) * dx * dy * D_depth
 Q_volumetric = Q_input_watts / vol_heater
 
@@ -110,12 +108,10 @@ Alpha = K / (Rho * Cp)
 alpha_max = np.max(Alpha[~mask_oil]) 
 dt = (0.8 * dx**2) / (4 * alpha_max)
 
-print(f"Time Step: {dt:.5f} s")
-print(f"Simulation Duration: {Time_Total} s")
-print(f"Saving Snapshots every {SNAPSHOT_INTERVAL_S} s")
+print(f"Time Step: {dt:.5f} s | Total Steps: {int(Time_Total/dt)}")
 
 # ==========================================
-# 🚀 RUN SIMULATION
+# 🚀 SIMULATION
 # ==========================================
 
 T = np.ones_like(X) * T_initial
@@ -124,23 +120,21 @@ T[mask_oil] = T_oil_bath
 n_steps = int(Time_Total / dt)
 steps_per_snapshot = int(SNAPSHOT_INTERVAL_S / dt)
 
-# Data Logging
 history_time = []
 history_heater = []
 history_air = []
-
-# Animation Frame Storage
 anim_frames = []
-anim_save_interval = int(n_steps / (Time_Total/Animation_Speedup * 30)) 
-if anim_save_interval < 1: anim_save_interval = 1
 
-# Setup Progress Bar directly
+# Calculate frame skip for animation (aim for ~600 frames max for smooth playback)
+anim_save_interval = max(1, int(n_steps / 600))
+
+# Progress Bar
 iterator = tqdm(range(n_steps), 
-                bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [Time: {postfix}]',
-                postfix="0.0s | T_heat: 20C")
+                bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [SimTime: {postfix}]',
+                postfix="0s")
 
 for n in iterator:
-    # 1. Physics
+    # --- Calc ---
     T[mask_oil] = T_oil_bath
     d2T = (np.roll(T, 1, axis=0) + np.roll(T, -1, axis=0) +
            np.roll(T, 1, axis=1) + np.roll(T, -1, axis=1) - 4 * T) / dx**2
@@ -148,81 +142,91 @@ for n in iterator:
     Q_term[mask_heater] = Q_volumetric
     T += dt * (Alpha * d2T + Q_term / (Rho * Cp))
     
-    # 2. Data Logging (Every 100 steps to keep arrays manageable)
+    # --- Logging ---
     if n % 100 == 0:
-        current_time = n * dt
-        t_h_mean = np.mean(T[mask_heater])
-        t_a_mean = np.mean(T[mask_air])
+        cur_time = n*dt
+        t_h = np.mean(T[mask_heater])
+        t_a = np.mean(T[mask_air])
+        history_time.append(cur_time)
+        history_heater.append(t_h)
+        history_air.append(t_a)
         
-        history_time.append(current_time)
-        history_heater.append(t_h_mean)
-        history_air.append(t_a_mean)
-        
-        # Update Progress Bar Text (every 500 steps to avoid flicker)
+        # Update progress bar text roughly every real-time second (every ~500 steps)
         if n % 500 == 0:
-            iterator.set_postfix_str(f"{current_time:.1f}s | T_heat: {t_h_mean-273.15:.1f}C")
+            iterator.set_postfix_str(f"{int(cur_time)}s | Heat: {t_h-273.15:.0f}C")
 
-    # 3. Save Snapshot to Disk
+    # --- Snapshots (Disk) ---
     if SAVE_SNAPSHOTS and (n % steps_per_snapshot == 0):
-        # Only check this condition so we don't slow down the main loop constantly
-        sim_time = n * dt
         plt.ioff()
-        fig_snap, ax_snap = plt.subplots(figsize=(8, 8))
-        im = ax_snap.imshow(T, cmap='inferno', origin='lower', 
+        fig_s, ax_s = plt.subplots(figsize=(6,6))
+        im_s = ax_s.imshow(T, cmap='inferno', origin='lower', 
                            extent=[0, L_total*1000, 0, L_total*1000],
                            vmin=T_initial, vmax=T_oil_bath+10)
-        ax_snap.contour(X*1000, Y*1000, mask_ins, levels=[0.5], colors='cyan', linewidths=0.5)
-        ax_snap.set_title(f"Time: {sim_time:.1f} s | Heater: {np.mean(T[mask_heater])-273.15:.1f}°C")
-        plt.colorbar(im, ax=ax_snap, label='Temp [K]')
-        filename = f"{SNAPSHOT_FOLDER}/step_{n:06d}_time_{int(sim_time)}s.png"
-        plt.savefig(filename, dpi=80)
-        plt.close(fig_snap)
-        
-    # 4. Store frame for Animation
+        ax_s.contour(X*1000, Y*1000, mask_ins, levels=[0.5], colors='cyan', linewidths=0.5)
+        ax_s.set_title(f"T={n*dt:.0f}s")
+        plt.colorbar(im_s, ax=ax_s, label='Temp [K]')
+        plt.savefig(f"{SNAPSHOT_FOLDER}/step_{n:06d}.png", dpi=80)
+        plt.close(fig_s)
+
+    # --- Animation (Memory) ---
     if n % anim_save_interval == 0:
         anim_frames.append(T.copy())
 
-# Capture final state
+# Final Capture
 anim_frames.append(T.copy())
 history_time.append(n*dt)
 history_heater.append(np.mean(T[mask_heater]))
 history_air.append(np.mean(T[mask_air]))
 
-print(f"\nSimulation Complete.")
+print("\nSimulation Complete.")
 
 # ==========================================
-# 📈 FINAL ANALYSIS GRAPHS
+# 📈 1. EVOLUTION GRAPH
 # ==========================================
-plt.figure(figsize=(10, 6))
-plt.plot(history_time, history_heater, label='Heater Block', color='red', linewidth=2)
-plt.plot(history_time, history_air, label='Avg Air Temp', color='orange', linewidth=2)
-plt.axhline(T_oil_bath, color='blue', linestyle='--', label='Oil Boundary (170°C)')
-plt.xlabel('Simulation Time [s]')
-plt.ylabel('Temperature [K]')
-plt.title(f'Temperature Evolution (Total Time: {Time_Total}s)')
+plt.figure(figsize=(10, 5))
+plt.plot(history_time, history_heater, 'r-', label='Heater Block')
+plt.plot(history_time, history_air, 'orange', label='Air Cavity (Avg)')
+plt.axhline(T_oil_bath, color='blue', linestyle='--', label='Oil Bath')
+plt.xlabel("Time [s]")
+plt.ylabel("Temperature [K]")
+plt.title("Temperature Evolution")
 plt.legend()
 plt.grid(True, alpha=0.3)
 plt.show()
 
 # ==========================================
-# 🎥 PLAYBACK ANIMATION
+# 🎥 2. ANIMATION WITH COLORBAR
 # ==========================================
-print("Launching Animation Window...")
-fig, ax = plt.subplots(figsize=(8, 8))
+print("Preparing Animation...")
+fig, ax = plt.subplots(figsize=(7, 7))
 extent_mm = [0, L_total*1000, 0, L_total*1000]
-im = ax.imshow(anim_frames[0], cmap='inferno', origin='lower', extent=extent_mm,
-               vmin=T_initial, vmax=T_oil_bath + 20)
 
+# Plot first frame
+im = ax.imshow(anim_frames[0], cmap='inferno', origin='lower', extent=extent_mm,
+               vmin=T_initial, vmax=T_oil_bath + 20) # Fixed scale
+
+# Add Contours
 ax.contour(X*1000, Y*1000, mask_ins, levels=[0.5], colors='cyan', linewidths=1)
-ax.set_xlabel("mm"); ax.set_ylabel("mm")
+
+# Add Colorbar (FIXED)
+cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+cbar.set_label('Temperature [K]')
+
 title = ax.set_title("Replay")
+ax.set_xlabel("mm")
+ax.set_ylabel("mm")
 
 def update(i):
     im.set_data(anim_frames[i])
-    # Calculate approx time for frame
-    t_approx = i * anim_save_interval * dt
-    title.set_text(f"Playback: {t_approx:.1f}s")
+    t_cur = i * anim_save_interval * dt
+    title.set_text(f"Time: {t_cur:.0f}s")
     return [im, title]
 
-ani = FuncAnimation(fig, update, frames=len(anim_frames), interval=30, blit=False)
+# Calculate FPS to match requested Speedup
+# Total Animation Time = Real Sim Time / Speedup
+anim_duration = Time_Total / Animation_Speedup
+fps = len(anim_frames) / anim_duration
+if fps < 1: fps = 1
+
+ani = FuncAnimation(fig, update, frames=len(anim_frames), interval=1000/fps, blit=False)
 plt.show()
