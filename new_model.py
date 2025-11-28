@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 # --- Experiment Description ---
 EXPERIMENT_DESCRIPTION = """
-Colder to actual conditions: 85 C ambient, 8 W heater, 85 C oil from just motor side. Assuming infinite oil thermal mass, but a gentler experiment case.
+Colder to actual conditions: 85 C ambient, 16 W heater, 170 C oil from just motor side. Assuming infinite oil thermal mass.
 """
 
 # --- New Physics Toggles ---
@@ -18,9 +18,19 @@ OIL_IS_FINITE = False        # True = Oil heats up over time. False = Infinite c
 OIL_PLACEMENT = "RIGHT"       # Options: "ALL", "LEFT", "RIGHT", "TOP", "BOTTOM"
 
 # --- Snapshot Settings ---
-SAVE_SNAPSHOTS      = True           
-SNAPSHOT_INTERVAL_S = 300.0          # Save image every 5 minutes
-SNAPSHOT_FOLDER     = "Test 5 - true milder condition" 
+SAVE_SNAPSHOTS = True           
+# Define snapshot intervals as list of dicts: [{'start': time_s, 'end': time_s, 'interval': seconds}, ...]
+# Example: 10 min intervals for first 4 hours, then hourly after that:
+# SNAPSHOT_INTERVALS = [
+#     {'start': 0, 'end': 14400, 'interval': 600},      # 10 min intervals for first 4 hours (14400s)
+#     {'start': 14400, 'end': float('inf'), 'interval': 3600},  # 1 hour intervals after that
+# ]
+# For single interval, use:
+SNAPSHOT_INTERVALS = [
+    {'start': 0, 'end': 180.0, 'interval': 20},  # Default: 5 min intervals throughout
+    {'start': 180, 'end': float('inf'), 'interval': 60},  # 1 hour intervals after that
+]
+SNAPSHOT_FOLDER     = "Test - 1000 hour run" 
 
 # --- Geometry [m] ---
 space_length = 0.094 
@@ -40,8 +50,8 @@ T_initial      = 293.15          # 20°C (Starting temp of everything - always r
 
 # --- Simulation Settings ---
 Resolution     = 140         
-Time_Total     = 3600*8       
-Animation_Speedup = 50.0    # Playback speed
+Time_Total     = 400       
+Animation_Speedup = 500.0    # Playback speed
 
 # --- Materials ---
 # Note: Added 'ambient' for the empty air space in single-sided mode
@@ -127,7 +137,15 @@ def save_experiment_log(folder_path, description, params_dict):
         f.write(f"Total Simulation Time: {params_dict['Time_Total']:.1f} s ({params_dict['Time_Total']/60:.2f} min, {params_dict['Time_Total']/3600:.3f} hours)\n")
         f.write(f"Time Step (dt): {params_dict['dt']:.6f} s\n")
         f.write(f"Number of Steps: {params_dict['n_steps']:,}\n")
-        f.write(f"Snapshot Interval: {params_dict['SNAPSHOT_INTERVAL_S']:.1f} s ({params_dict['SNAPSHOT_INTERVAL_S']/60:.2f} min)\n")
+        f.write(f"\nSnapshot Intervals:\n")
+        for i, interval_config in enumerate(params_dict['SNAPSHOT_INTERVALS']):
+            start_time = interval_config['start']
+            end_time = interval_config['end']
+            interval = interval_config['interval']
+            if end_time == float('inf'):
+                f.write(f"  Interval {i+1}: {interval:.1f} s ({interval/60:.2f} min) from {start_time/3600:.2f} hours to end\n")
+            else:
+                f.write(f"  Interval {i+1}: {interval:.1f} s ({interval/60:.2f} min) from {start_time/3600:.2f} to {end_time/3600:.2f} hours\n")
         f.write(f"Animation Speedup: {params_dict['Animation_Speedup']:.1f}x\n")
         
         f.write("\n" + "=" * 70 + "\n")
@@ -231,7 +249,7 @@ experiment_params = {
     'mat_heat': mat_heat,
     'Time_Total': Time_Total,
     'dt': dt,
-    'SNAPSHOT_INTERVAL_S': SNAPSHOT_INTERVAL_S,
+    'SNAPSHOT_INTERVALS': SNAPSHOT_INTERVALS,
     'Animation_Speedup': Animation_Speedup,
 }
 
@@ -310,30 +328,41 @@ for n in iterator:
             iterator.set_postfix_str(f"{int(cur_time)}s | Heat: {t_h-273.15:.0f}C | Oil: {t_o-273.15:.1f}C")
 
     # --- 4. Snapshots ---
-    if SAVE_SNAPSHOTS and (n * dt) % SNAPSHOT_INTERVAL_S < dt:
-        plt.ioff()
-        fig_s, ax_s = plt.subplots(figsize=(6,6))
-        im_s = ax_s.imshow(T, cmap='inferno', origin='lower', extent=[0, L_total*1000, 0, L_total*1000], vmin=T_initial, vmax=T_oil_setpoint+50)
-        
-        # Add colorbar
-        cbar_s = plt.colorbar(im_s, ax=ax_s, fraction=0.046, pad=0.04)
-        cbar_s.set_label('Temperature [K]', fontsize=10)
-        
-        # Draw Oil Boundary
-        if np.sum(mask_oil) > 0:
-            ax_s.contour(X*1000, Y*1000, mask_oil, levels=[0.5], colors='blue', linewidths=1.0)
-        # Draw Box
-        ax_s.contour(X*1000, Y*1000, mask_ins, levels=[0.5], colors='cyan', linewidths=0.5)
-        
-        current_time = n * dt
-        ax_s.set_title(f"T={current_time:.0f}s | Mode: {OIL_PLACEMENT}")
-        ax_s.set_xlabel("x [mm]")
-        ax_s.set_ylabel("y [mm]")
-        
-        # Save with time-based filename instead of step number
-        time_str = f"t{current_time:07.0f}s"  # Format: t0000120s for 120 seconds
-        plt.savefig(f"{SNAPSHOT_FOLDER}/{time_str}.png", dpi=80, bbox_inches='tight')
-        plt.close(fig_s)
+    # Check which snapshot interval applies to current time
+    current_time = n * dt
+    snapshot_interval = None
+    for interval_config in SNAPSHOT_INTERVALS:
+        if interval_config['start'] <= current_time < interval_config['end']:
+            snapshot_interval = interval_config['interval']
+            break
+    
+    # Save snapshot if interval applies and time matches
+    if SAVE_SNAPSHOTS and snapshot_interval is not None:
+        # Check if we should save at this time step
+        # Calculate if current_time is close to a multiple of the interval
+        if current_time % snapshot_interval < dt:
+            plt.ioff()
+            fig_s, ax_s = plt.subplots(figsize=(6,6))
+            im_s = ax_s.imshow(T, cmap='inferno', origin='lower', extent=[0, L_total*1000, 0, L_total*1000], vmin=T_initial, vmax=T_oil_setpoint+50)
+            
+            # Add colorbar
+            cbar_s = plt.colorbar(im_s, ax=ax_s, fraction=0.046, pad=0.04)
+            cbar_s.set_label('Temperature [K]', fontsize=10)
+            
+            # Draw Oil Boundary
+            if np.sum(mask_oil) > 0:
+                ax_s.contour(X*1000, Y*1000, mask_oil, levels=[0.5], colors='blue', linewidths=1.0)
+            # Draw Box
+            ax_s.contour(X*1000, Y*1000, mask_ins, levels=[0.5], colors='cyan', linewidths=0.5)
+            
+            ax_s.set_title(f"T={current_time:.0f}s | Mode: {OIL_PLACEMENT}")
+            ax_s.set_xlabel("x [mm]")
+            ax_s.set_ylabel("y [mm]")
+            
+            # Save with time-based filename instead of step number
+            time_str = f"t{current_time:07.0f}s"  # Format: t0000120s for 120 seconds
+            plt.savefig(f"{SNAPSHOT_FOLDER}/{time_str}.png", dpi=80, bbox_inches='tight')
+            plt.close(fig_s)
 
     # --- 5. Animation Storage ---
     if n % anim_save_interval == 0:
