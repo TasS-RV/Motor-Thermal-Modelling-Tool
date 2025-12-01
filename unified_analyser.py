@@ -457,7 +457,6 @@ def smooth_rolling_average(time, values, window_size=5.0, range_indices=None):
                 smoothed[idx] = values_range[i]
         else:
             smoothed[idx] = values_range[i]
-    
     return smoothed
 
 
@@ -469,55 +468,142 @@ if __name__ == "__main__":
     # ======================================================================
     # EDIT THESE VARIABLES:
     # ======================================================================
-    # 1. Multiple files: List of folder names
+    # CONFIGURATION: Modify ONLY folder_names and optional per-folder settings below
+    # ======================================================================
+    #
+    # USAGE:
+    # 1. Modify the folder_names list below (add/remove folder names)
+    # 2. Optionally customize per-folder settings in FOLDER_CONFIG
+    # 3. All dictionaries (COLUMNS_TO_PLOT, TEMPERATURE_LABELS, FITTED_LABELS, 
+    #    fit_start_seconds, etc.) are AUTO-GENERATED from folder_names and FOLDER_CONFIG
+    #
+    # To add a new folder:
+    #   - Add it to folder_names list
+    #   - Optionally add an entry in FOLDER_CONFIG with custom settings
+    #   - If not in FOLDER_CONFIG, defaults will be used
+    #
+    # ======================================================================
+    
+    # 1. FOLDER NAMES - Modify this list only! Add or remove folder names here.
     folder_names = ["Run2-Throttle100", "Run13-Throttle8"] #"Run3-Throttle100"]
     #folder_names = ["Run8-Throttle100", "Run14-Throttle9" ] #"Run3-Throttle100"]
     
-
-    # 2. Columns from Export_DataAPD files to plot (dictionary: folder_name -> list of columns)
-    # 
-    # You can specify columns in three ways - simple string just to plot the raw data, or a variety of parameters to apply filters and smoothing
-    # - Simple string: "Power (W)" - plots raw data
-    # - Dictionary with smoothing: {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 5.0}
-    #   - "smooth": True/False - enable/disable smoothing
-    #   - "method": "stratified" (binned averaging) or "rolling" (rolling average)
-    #   - "window_size": time window in seconds (default: 5.0)
-    #   - "range": [start_idx, end_idx] or [start_idx] - optional, data point indices to smooth and plot
-    #     Examples: [20, 1020] means points 20 to 1020, [20] means from point 20 to the end
-    #     If specified, only this range will be plotted for this column (data keeps original time positions)
-    #     Each column can have its own range, allowing different ranges for different columns
-    #   - "label": string - optional, custom label for the plot line (default: auto-generated)
-    #     Example: "label": "Run 2 - Smoothed Power" overrides the default label format
-    #
-    # Note: Y-axis range for the right axis (power/current) is configured separately below using RIGHT_Y_AXIS_RANGE
-    #
-    # Example with smoothing, range, and custom label:
-    # COLUMNS_TO_PLOT = {
-    #     "Run2-Throttle100": [
-    #         {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 5.0, 
-    #          "range": [20, 1020], "label": "Run 2 - Smoothed Power"},
-    #         {"column": "Current (A)", "smooth": True, "method": "stratified", "window_size": 5.0, 
-    #          "range": [50, 1050], "label": "Run 2 - Current"}
-    #     ],
-    # }
-    #
-    # Example with smoothing (full dataset):
-    # Original columns to plot implementation - simple
-    # COLUMNS_TO_PLOT = {
-    #     "Run2-Throttle100": ["Power (W)"],
-    #     "Run13-Throttle8": ["Power (W)"],
-    # }
-
-    COLUMNS_TO_PLOT = {
-        "Run2-Throttle100": [
-            {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 3, 
-            "range": [30, 1200], "label": "iNetic winding temp"}
-        ],
-        "Run13-Throttle8": [
-            {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 3, 
-            "range": [80, 1100], "label": "ARES winding temp"}
-        ],
+    # Optional: Per-folder customizations (only specify what you want to override)
+    # All other settings will use defaults or be auto-generated from folder_names
+    # To use defaults for a folder, simply don't include it in FOLDER_CONFIG
+    FOLDER_CONFIG = {
+        "Run2-Throttle100": {
+            "columns": [
+                {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 1, 
+                "range": [30, 1200], "label": "iNetic winding temp"}
+            ],
+            "temperature_label": "iNetic Winding Body Temperature",
+            "fitted_label": "iNetic (lumped thermal)",
+            "fit_start": 5,
+            "fit_end": 120,
+            "prediction_limit": 400,
+            "fixed_power": 600,
+            "show_fitted": False,
+            "show_const_power": False,
+            "show_fit_range_lines": True,
+        },
+        "Run13-Throttle8": {
+            "columns": [
+                {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 1, 
+                "range": [80, 1100], "label": "ARES winding temp"}
+            ],
+            "temperature_label": "ARES Winding Temperature",
+            "fitted_label": "ARES (lumped thermal)",
+            "fit_start": 80,
+            "fit_end": 112,
+            "prediction_limit": 600,
+            "fixed_power": 600,
+            "show_fitted": False,
+            "show_const_power": False,
+            "show_fit_range_lines": True,
+        },
     }
+    
+    # Default values for settings not specified in FOLDER_CONFIG
+    DEFAULT_CONFIG = {
+        "columns": [{"column": "Power (W)", "smooth": False}],  # Default: simple power plot
+        "temperature_label": None,  # None = auto-generate from folder_name
+        "fitted_label": None,  # None = auto-generate from folder_name
+        "fit_start": None,  # None = use data start
+        "fit_end": None,  # None = use data end
+        "prediction_limit": None,  # None = 1.5x max time
+        "fixed_power": None,  # None = skip constant power prediction
+        "show_fitted": True,
+        "show_const_power": False,
+        "show_fit_range_lines": True,
+    }
+    
+    # Auto-generate all dictionaries from folder_names and FOLDER_CONFIG
+    COLUMNS_TO_PLOT = {}
+    TEMPERATURE_LABELS = {}
+    FITTED_LABELS = {}
+    fit_start_seconds = {}
+    fit_end_seconds = {}
+    prediction_time_limit_seconds = {}
+    fixed_power_input = {}
+    show_fitted_curve = {}
+    show_const_power_prediction = {}
+    show_fit_range_lines = {}
+    
+    for idx, folder_name in enumerate(folder_names, start=1):
+        # Get config for this folder (merge with defaults)
+        config = DEFAULT_CONFIG.copy()
+        if folder_name in FOLDER_CONFIG:
+            config.update(FOLDER_CONFIG[folder_name])
+        
+        # Generate COLUMNS_TO_PLOT
+        COLUMNS_TO_PLOT[folder_name] = config["columns"]
+        
+        # Generate TEMPERATURE_LABELS
+        if config["temperature_label"]:
+            TEMPERATURE_LABELS[folder_name] = config["temperature_label"]
+        
+        # Generate FITTED_LABELS
+        if config["fitted_label"]:
+            FITTED_LABELS[folder_name] = config["fitted_label"]
+        
+        # Generate indexed dictionaries
+        if config["fit_start"] is not None:
+            fit_start_seconds[f"fit_start_{idx}"] = config["fit_start"]
+        if config["fit_end"] is not None:
+            fit_end_seconds[f"fit_end_{idx}"] = config["fit_end"]
+        if config["prediction_limit"] is not None:
+            prediction_time_limit_seconds[f"prediction_limit_{idx}"] = config["prediction_limit"]
+        if config["fixed_power"] is not None:
+            fixed_power_input[f"fixed_power_{idx}"] = config["fixed_power"]
+        
+        show_fitted_curve[f"show_fitted_{idx}"] = config["show_fitted"]
+        show_const_power_prediction[f"show_const_power_{idx}"] = config["show_const_power"]
+        show_fit_range_lines[f"show_fit_range_lines_{idx}"] = config["show_fit_range_lines"]
+    
+    # ======================================================================
+    # COLUMN CONFIGURATION REFERENCE (for FOLDER_CONFIG["columns"])
+    # ======================================================================
+    # You can specify columns in the FOLDER_CONFIG["columns"] list in two ways:
+    #
+    # 1. Simple string: "Power (W)" - plots raw data
+    #
+    # 2. Dictionary with smoothing/filtering:
+    #    {
+    #        "column": "Power (W)", 
+    #        "smooth": True, 
+    #        "method": "stratified",  # or "rolling"
+    #        "window_size": 5.0,      # time window in seconds
+    #        "range": [20, 1020],     # optional: [start_idx, end_idx] or [start_idx]
+    #        "label": "Custom Label"  # optional: custom plot label
+    #    }
+    #
+    # The "columns" setting in FOLDER_CONFIG is a list of these specifications.
+    # All dictionaries below are AUTO-GENERATED - do not modify them manually!
+
+    # ======================================================================
+    # GLOBAL SETTINGS (not per-folder)
+    # ======================================================================
     
     # Right y-axis (power/current) range configuration
     # Format: [ymin, ymax] for both limits, or just ymin (float) to set minimum only
@@ -526,102 +612,22 @@ if __name__ == "__main__":
     # RIGHT_Y_AXIS_RANGE = [100, 500]  # Example: [100, 500] sets range from 100 to 500
     # RIGHT_Y_AXIS_RANGE = None  # Example: None for full auto-scale
     
-    # Temperature plot labels (dictionary: folder_name -> label)
-    # If not specified for a folder, uses default: "{folder_name} - {temperature_param}"
-    TEMPERATURE_LABELS = {
-         "Run2-Throttle100": "iNetic Winding Body Temperature",
-         "Run13-Throttle8": "ARES Winding Temperature",
-    }
-    
-    # Fitted curve labels (dictionary: folder_name -> label)
-    # If not specified for a folder, uses default: "{folder_name} (fitted)"
-    FITTED_LABELS = {
-         "Run2-Throttle100": "iNetic (lumped thermal)",
-         "Run13-Throttle8": "ARES (lumped thermal)",
-    }
-
-    
-    # 3. Temperature parameter from DAQ files
+    # Temperature parameter from DAQ files
     temperature_param = "Winding Temp (°C)" 
     # For the ARES stator - this corresponds to Winding1 (°C) hooked up to channel 7. The other winding IS cooler, but partly because the thermocouple keeps coming off - it was put at a different location.
     # For the PH3 in Run8 - the header is swapped to get a plot!
 
-    # 4. Sampling period for Export_DataAPD files (seconds)
+    # Sampling period for Export_DataAPD files (seconds)
     SAMPLING_PERIOD = 0.1
     
-    # 5. Time window to verify throttle rise (seconds) - will automatically adjust the number of datapoints parsed to keep a consistent - check that throttle doesn't go back to 0
+    # Time window to verify throttle rise (seconds) - will automatically adjust the number of datapoints parsed to keep a consistent - check that throttle doesn't go back to 0
     THROTTLE_VERIFICATION_WINDOW = 5.0
     
-    # 6. Plot title
+    # Plot title
     plot_title = "Aligned Temperature and APD Data"
 
-    # 7. APD data label
+    # APD data label
     APD_DATA_LABEL = "APD Data (Power - W)"
-
-    # 7. Curve fitting time range (in seconds, relative to aligned time)
-    # Dictionary with keys: "fit_start_1", "fit_start_2", etc. for each folder (by index)
-    fit_start_seconds = {
-        "fit_start_1": 5,  # For first folder in folder_names list
-        "fit_start_2": 80,  # For second folder in folder_names list
-       # "fit_start_3": 10,  # For third folder in folder_names list
-    #    "fit_start_4": 15,  # For third folder in folder_names list
-        # Add more as needed: "fit_start_4", etc.
-    }
-    
-    # Dictionary with keys: "fit_end_1", "fit_end_2", etc. for each folder (by index)
-    fit_end_seconds = {
-        "fit_end_1": 120,  # For first folder in folder_names list
-        "fit_end_2": 112,     # For second folder in folder_names list
-    #    "fit_end_3": 190,  # For third folder in folder_names list
-        # Add more as needed: "fit_end_4", etc.
-    }
-    
-    # 8. Prediction time limits (in seconds) - how far to extend the fitted curve
-    # Dictionary with keys: "prediction_limit_1", "prediction_limit_2", etc. for each folder (by index)
-    prediction_time_limit_seconds = {
-        "prediction_limit_1": 120,  # For first folder in folder_names list
-        "prediction_limit_2": 120,   # For second folder in folder_names list
-        # Add more as needed: "prediction_limit_4", etc.
-        # Or set to None for a folder to use default (1.5x max time)
-    }
-    
-    # 9. Fixed power input for constant power predictions (Watts)
-    # Dictionary with keys: "fixed_power_1", "fixed_power_2", etc. for each folder (by index)
-    # Set to None to skip constant power prediction for that folder
-    fixed_power_input = {
-        "fixed_power_1": 600,  # For first folder in folder_names list (Watts)
-        "fixed_power_2": 600,  # For second folder in folder_names list (Watts)
-        # Add more as needed: "fixed_power_3", etc.
-        # Or set to None to skip prediction for that folder
-    }
-    
-    # 10. Plot visibility controls (True/False)
-    # Dictionary with keys: "show_fitted_1", "show_fitted_2", etc. for each folder (by index)
-    # Controls whether to show the fitted thermal model curve
-    show_fitted_curve = {
-        "show_fitted_1": True,  # For first folder in folder_names list
-        "show_fitted_2": True,  # For second folder in folder_names list
-        # Add more as needed: "show_fitted_3", etc.
-        # Default: True if not specified
-    }
-    
-    # Dictionary with keys: "show_const_power_1", "show_const_power_2", etc. for each folder (by index)
-    # Controls whether to show the constant power prediction curve
-    show_const_power_prediction = {
-        "show_const_power_1": False,  # For first folder in folder_names list
-        "show_const_power_2": False,  # For second folder in folder_names list
-        # Add more as needed: "show_const_power_3", etc.
-        # Default: True if not specified
-    }
-    
-    # Dictionary with keys: "show_fit_range_lines_1", "show_fit_range_lines_2", etc. for each folder (by index)
-    # Controls whether to show vertical lines indicating the fitting time range
-    show_fit_range_lines = {
-        "show_fit_range_lines_1": True,  # For first folder in folder_names list
-        "show_fit_range_lines_2": True,  # For second folder in folder_names list
-        # Add more as needed: "show_fit_range_lines_3", etc.
-        # Default: True if not specified
-    }
     # ======================================================================
     
     base_path = Path.cwd()
