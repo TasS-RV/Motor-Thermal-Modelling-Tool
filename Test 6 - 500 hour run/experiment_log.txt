@@ -1,0 +1,68 @@
+======================================================================
+EXPERIMENT LOG
+======================================================================
+
+EXPERIMENT DESCRIPTION:
+----------------------------------------------------------------------
+Colder to actual conditions: 85 C ambient, 8 W heater, 170 C oil from just motor side. Assuming infinite oil thermal mass. However, more extreme case with only 90 perc. efficiency resultin gin 16 W heater.
+
+KEY PARAMETERS:
+----------------------------------------------------------------------
+
+--- GEOMETRY ---
+Space Length: 94.00 mm
+Air Inner (L_air_inner): 100.00 mm
+Insulation Thickness (t_insulation): 5.00 mm
+Oil Margin (t_oil_margin): 50.00 mm
+Depth (D_depth): 103.00 mm
+Heater Block Size (L_heater_block): 30.00 mm
+Grid Resolution: 140×140
+Grid Spacing (dx): 1.5000 mm
+Total Domain Size: 210.00 mm
+
+--- TEMPERATURES ---
+Oil Setpoint: 423.15 K (150.00°C)
+Ambient Temperature: 358.15 K (85.00°C)
+Initial Temperature: 293.15 K (20.00°C)
+
+--- OIL CONFIGURATION ---
+Oil Placement: RIGHT
+Oil Type: INFINITE (Constant temperature)
+
+--- HEAT SOURCE ---
+Heater Power: 8.00 W
+Heater Volume: 92700.00 mm³
+Volumetric Heat Generation: 8.63e+04 W/m³
+
+--- MATERIAL PROPERTIES ---
+Insulation (Aerogel):
+  k = 0.0200 W/mK
+  ρ = 150.0 kg/m³
+  cp = 1000.0 J/kgK
+Internal Air:
+  k = 0.0260 W/mK
+  ρ = 1.225 kg/m³
+  cp = 1005.0 J/kgK
+Oil:
+  k = 0.1500 W/mK
+  ρ = 800.0 kg/m³
+  cp = 2000.0 J/kgK
+Heater (Aluminum):
+  k = 160.0 W/mK
+  ρ = 2700.0 kg/m³
+  cp = 900.0 J/kgK
+
+--- SIMULATION SETTINGS ---
+Total Simulation Time: 1800000.0 s (30000.00 min, 500.000 hours)
+Time Step (dt): 0.006834 s
+Number of Steps: 263,374,485
+
+Snapshot Intervals:
+  Interval 1: 300.0 s (5.00 min) from 0.00 to 1.00 hours
+  Interval 2: 900.0 s (15.00 min) from 1.00 to 6.00 hours
+  Interval 3: 14400.0 s (240.00 min) from 6.00 to 100.00 hours
+  Interval 4: 86400.0 s (1440.00 min) from 100.00 hours to end
+Animation Speedup: 500.0x
+
+======================================================================
+Log file generated automatically by simulation.

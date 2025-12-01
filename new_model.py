@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 # --- Experiment Description ---
 EXPERIMENT_DESCRIPTION = """
-Colder to actual conditions: 85 C ambient, 16 W heater, 170 C oil from just motor side. Assuming infinite oil thermal mass.
+Colder to actual conditions: 85 C ambient, 16 W heater, 170 C oil from just motor side. Assuming infinite oil thermal mass. However, more extreme case with only 90 perc. efficiency resultin gin 16 W heater.
 """
 
 # --- New Physics Toggles ---
@@ -27,10 +27,12 @@ SAVE_SNAPSHOTS = True
 # ]
 # For single interval, use:
 SNAPSHOT_INTERVALS = [
-    {'start': 0, 'end': 180.0, 'interval': 20},  # Default: 5 min intervals throughout
-    {'start': 180, 'end': float('inf'), 'interval': 60},  # 1 hour intervals after that
+    {'start': 0.0, 'end': 3600.0*1, 'interval': 60.0*5},  # Starting with 5 min intervals for transient 1 hour heating
+    {'start': 3600.0*1, 'end': 3600.0*6, 'interval': 15.0*60},  # The 15 min intervals running to 6 hours
+    {'start': 3600.0*6, 'end': 3600.0*100, 'interval': 3600*4},  # 1 hour intervals after that
+    {'start': 3600.0*100, 'end': float('inf'), 'interval': 3600*24},  # 1 day intervals after that to 'infinity' - end
 ]
-SNAPSHOT_FOLDER     = "Test - 1000 hour run" 
+SNAPSHOT_FOLDER     = "Test 6 - 500 hour run" 
 
 # --- Geometry [m] ---
 space_length = 0.094 
@@ -44,13 +46,13 @@ L_heater_block = 0.030
 Q_input_watts  = 8.0       
 
 # --- Temperatures [K] ---
-T_oil_setpoint = 273.15 + 85.0   # 170°C
+T_oil_setpoint = 273.15 + 150.0   # 170°C
 T_ambient      = 273.15 + 85.0          # 20°C (Room temp for non-oil sides)
 T_initial      = 293.15          # 20°C (Starting temp of everything - always room temp)
 
 # --- Simulation Settings ---
 Resolution     = 140         
-Time_Total     = 400       
+Time_Total     = 3600*500       
 Animation_Speedup = 500.0    # Playback speed
 
 # --- Materials ---
