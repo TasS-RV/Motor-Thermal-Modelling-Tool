@@ -502,6 +502,12 @@ if __name__ == "__main__":
     # }
     #
     # Example with smoothing (full dataset):
+    # Original columns to plot implementation - simple
+    # COLUMNS_TO_PLOT = {
+    #     "Run2-Throttle100": ["Power (W)"],
+    #     "Run13-Throttle8": ["Power (W)"],
+    # }
+
     COLUMNS_TO_PLOT = {
         "Run2-Throttle100": [
             {"column": "Power (W)", "smooth": True, "method": "stratified", "window_size": 3, 
@@ -533,12 +539,7 @@ if __name__ == "__main__":
          "Run2-Throttle100": "iNetic (lumped thermal)",
          "Run13-Throttle8": "ARES (lumped thermal)",
     }
-    
-#   Example without smoothing (commented out):
-    # COLUMNS_TO_PLOT = {
-    #     "Run2-Throttle100": ["Power (W)"],
-    #     "Run13-Throttle8": ["Power (W)"],
-    # }
+
     
     # 3. Temperature parameter from DAQ files
     temperature_param = "Winding Temp (°C)" 
